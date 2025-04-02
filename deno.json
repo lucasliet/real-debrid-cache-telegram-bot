@@ -1,0 +1,28 @@
+{
+  "tasks": {
+    "dev": "deno run --watch --allow-net --allow-read --allow-env --allow-import --allow-write --unstable-cron main.ts"
+  },
+  "imports": {
+    "grammy": "https://deno.land/x/grammy@v1.21.1/mod.ts",
+    "grammy/files": "https://deno.land/x/grammy_files@v1.0.4/mod.ts",
+    "std/path": "https://deno.land/std@0.212.0/path/mod.ts",
+    "std/dotenv": "https://deno.land/std@0.212.0/dotenv/mod.ts"
+  },
+  "compilerOptions": {
+    "lib": ["deno.window", "dom"],
+    "strict": true
+  },
+  "lint": {
+    "include": ["*.ts"],
+    "exclude": ["README.md", ".env"]
+  },
+  "fmt": {
+    "include": ["*.ts"],
+    "exclude": ["README.md", ".env"],
+    "options": {
+			"useTabs": true,
+			"semiColons": true,
+			"singleQuote": true
+		}
+  }
+} 

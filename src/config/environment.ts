@@ -35,4 +35,8 @@ export class Environment {
     const allowedUser = this.env["ALLOWED_USER_ID"] || Deno.env.get("ALLOWED_USER_ID");
     return Number(allowedUser || 0);
   }
+
+  get TINFOIL_USER_PASS(): string {
+    return this.env["TINFOIL_USER_PASS"] || Deno.env.get("TINFOIL_USER_PASS") || "";
+  }
 }

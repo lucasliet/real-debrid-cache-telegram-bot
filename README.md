@@ -1,89 +1,60 @@
-# Bot Real-Debrid para Telegram
+# Real-Debrid Cache Telegram Bot
 
-Bot para Telegram que permite enviar arquivos .torrent e links magnet para o Real-Debrid, processando cada arquivo individualmente para evitar a criação de arquivos .rar no WebDAV.
+Bot do Telegram para enviar torrents individualmente para o Real-Debrid, evitando a criação de arquivos RAR no WebDAV.
 
 ## Funcionalidades
 
-- Processamento de arquivos .torrent enviados no chat
-- Processamento de links magnet enviados como mensagens
-- Suporte a torrents com múltiplos arquivos (cada arquivo é adicionado individualmente)
-- Comandos de ajuda e informações
-
-## Requisitos
-
-- [Deno](https://deno.land/) (versão 1.32.0 ou superior)
-- Token de bot do Telegram (obtenha através do [@BotFather](https://t.me/BotFather))
-- Token de API do Real-Debrid (obtenha em sua [conta Real-Debrid](https://real-debrid.com/apitoken))
-- Conta no [Deno Deploy](https://deno.com/deploy) para deploy em produção
+- Processa arquivos .torrent e links magnet
+- Seleciona apenas arquivos com extensões específicas (nsp, nsz, xci, xcz)
+- Processa cada arquivo individualmente para evitar arquivos RAR
+- Fornece atualizações em tempo real do progresso
+- Suporta webhooks para deploy contínuo
 
 ## Configuração
 
-1. Clone este repositório:
-   ```bash
-   git clone https://github.com/seu-usuario/real-debrid-telegram-bot.git
-   cd real-debrid-telegram-bot
-   ```
+### Pré-requisitos
+- [Deno](https://deno.land/) instalado
+- Conta no [Real-Debrid](https://real-debrid.com/)
+- Bot do Telegram (obtenha um token através do [@BotFather](https://t.me/botfather))
 
-2. Para desenvolvimento local, crie um arquivo `.env` na raiz do projeto com as seguintes variáveis:
-   ```
-   BOT_TOKEN=seu_token_do_bot_telegram
-   RD_TOKEN=seu_token_da_api_real_debrid
-   ```
+### Variáveis de Ambiente
+Crie um arquivo `.env` na raiz do projeto:
 
-## Como obter o token do Real-Debrid
-
-1. Acesse sua conta Real-Debrid em [real-debrid.com](https://real-debrid.com/)
-2. Vá para a página [Minha Conta > API](https://real-debrid.com/apitoken)
-3. Copie o token fornecido
-
-## Como executar em ambiente local
-
-Usando Deno task:
-
-```bash
-deno task start
+```env
+BOT_TOKEN=seu_token_do_telegram
+RD_TOKEN=seu_token_do_real_debrid
 ```
 
-Ou manualmente:
+## Executando o Projeto
 
+### Desenvolvimento Local
 ```bash
-deno run --allow-net --allow-read --allow-env --allow-import main.ts
+deno task dev
 ```
 
-## Deploy no Deno Deploy
+### Deploy (Deno Deploy)
+1. Fork este repositório
+2. Configure as variáveis de ambiente no Deno Deploy
+3. Conecte seu repositório ao Deno Deploy
 
-Para fazer o deploy deste bot no Deno Deploy, siga estas etapas:
+## Como Usar
 
-1. Crie uma conta no [Deno Deploy](https://deno.com/deploy) caso ainda não tenha
-
-2. Crie um novo projeto e conecte-o ao seu repositório GitHub ou faça upload dos arquivos diretamente
-
-3. Configure as seguintes variáveis de ambiente no painel do Deno Deploy:
-   - `BOT_TOKEN` - Token do seu bot Telegram
-   - `RD_TOKEN` - Token de API do Real-Debrid
-   - `WEBHOOK_URL` - URL completa do seu projeto Deno Deploy (ex: https://seu-projeto.deno.dev)
-
-4. Defina o arquivo de entrada como `main.ts`
-
-5. Depois do deploy, configure o webhook do seu bot Telegram acessando a seguinte URL:
-   ```
-   https://api.telegram.org/bot{SEU_BOT_TOKEN}/setWebhook?url={URL_DENO_DEPLOY}/webhook/{SEU_BOT_TOKEN}
-   ```
-
-O bot agora deve estar funcionando e respondendo às mensagens através do webhook.
-
-## Como usar o bot
-
-1. Inicie uma conversa com o bot no Telegram
+1. Inicie uma conversa com seu bot no Telegram
 2. Envie um arquivo .torrent ou um link magnet
-3. O bot processará o arquivo/link e adicionará ao Real-Debrid
-4. Se o torrent contiver múltiplos arquivos, o bot adicionará cada um individualmente
+3. O bot irá:
+   - Analisar o arquivo/link
+   - Listar os arquivos encontrados
+   - Processar cada arquivo individualmente
+   - Fornecer atualizações do progresso
 
-## Comandos disponíveis
+## Contribuindo
 
-- `/start` - Inicia o bot
-- `/ajuda` - Exibe informações de ajuda
+1. Fork o projeto
+2. Crie uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
+3. Commit suas mudanças (`git commit -m 'Add: nova funcionalidade'`)
+4. Push para a branch (`git push origin feature/AmazingFeature`)
+5. Abra um Pull Request
 
 ## Licença
 
-MIT 
+Distribuído sob a licença MIT. Veja `LICENSE` para mais informações.

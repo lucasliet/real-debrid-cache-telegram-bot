@@ -30,4 +30,9 @@ export class Environment {
   get RD_TOKEN(): string {
     return this.env["RD_TOKEN"] || Deno.env.get("RD_TOKEN") || "";
   }
+
+  get ALLOWED_USER_ID(): number {
+    const allowedUser = this.env["ALLOWED_USER_ID"] || Deno.env.get("ALLOWED_USER_ID");
+    return Number(allowedUser || 0);
+  }
 }

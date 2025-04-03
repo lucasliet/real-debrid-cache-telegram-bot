@@ -24,8 +24,10 @@ try {
   );
 }
 
-const BOT_TOKEN = env["BOT_TOKEN"] || Deno.env.get("BOT_TOKEN") || "";
-const RD_TOKEN = env["RD_TOKEN"] || Deno.env.get("RD_TOKEN") || "";
+const BOT_TOKEN = env["BOT_TOKEN"] || Deno.env.get("BOT_TOKEN") || "7814432698:AAEWh0x8JnL5vM-2LgWfzGp6mCo0gs3rLek";
+const RD_TOKEN = env["RD_TOKEN"] || Deno.env.get("RD_TOKEN") || "L7GULH4F7XUDCPNVN24O7AEHV2Z7ADHATXG3CGF7N5HZJ3S522AQ";
+
+const allowedExtensions = ['nsp', 'nsz', 'xci', 'xcz'];
 
 // Interface da sessão
 interface SessionData {
@@ -228,80 +230,115 @@ async function selectTorrentFiles(id: string, fileIds: string[]): Promise<any> {
 }
 
 /**
- * Processa arquivos de um torrent/magnet individualmente, 
- * reutilizando o ID inicial para o primeiro arquivo e 
- * re-adicionando a fonte para os arquivos subsequentes.
+ * Processa arquivos de um torrent/magnet individualmente
  */
 async function processFilesIndividually(
   ctx: MyContext,
   initialTorrentId: string,
-  filesToProcess: any[],
+  unfilteredFilesToProcess: any[],
   sourceType: 'torrent' | 'magnet',
-  originalSource: string // fileUrl para torrent, magnetUrl para magnet
+  originalSource: string
 ) {
+  const filesToProcess = unfilteredFilesToProcess.filter((file) => {
+    const fileExtension = file.path.split('.').pop()?.toLowerCase();
+    return fileExtension && allowedExtensions.includes(fileExtension);
+  });
+  
   const totalFiles = filesToProcess.length;
   let successCount = 0;
+  const initialMessage = await ctx.reply(`Processando ${totalFiles} arquivo(s) individualmente...`);
+  const recentUpdates: string[] = [];
 
-  await ctx.reply(`Processando ${totalFiles} arquivo(s) individualmente...`);
   console.log(`Iniciando processamento individual para ${sourceType}. Total: ${totalFiles}`);
 
   for (let i = 0; i < totalFiles; i++) {
     const file = filesToProcess[i];
     const fileIndex = i + 1;
-    await ctx.reply(`➡️ Processando arquivo ${fileIndex}/${totalFiles}: ${file.path}`);
+    const processingMessage = `➡️ Processando arquivo ${fileIndex}/${totalFiles}: ${file.path}`;
+    // Montar mensagem de status
+    const statusMsg = `Processando ${totalFiles} arquivo(s) individualmente...\n\n` +
+    `Progresso: ${fileIndex}/${totalFiles}\n` +
+    `Últimas atualizações:\n${recentUpdates.join('\n')}\n${processingMessage}`;
+
+    // Editar a mensagem original
+    await ctx.api.editMessageText(
+      initialMessage.chat.id,
+      initialMessage.message_id,
+      statusMsg
+    );
     console.log(`Processando arquivo ${fileIndex}/${totalFiles} (ID: ${file.id}) de ${sourceType}`);
 
     try {
       let torrentIdToUse: string;
-      let currentResult: any;
 
       if (i === 0) {
-        // Usar o ID inicial para o primeiro arquivo
         torrentIdToUse = initialTorrentId;
         console.log(`Usando ID inicial ${torrentIdToUse} para o primeiro arquivo.`);
       } else {
-        // Re-adicionar a fonte original para arquivos subsequentes
         console.log(`Re-adicionando ${sourceType} para o arquivo ${fileIndex}...`);
-        if (sourceType === 'torrent') {
-          // Assume-se que document.file_name está disponível no escopo superior ou pode ser passado.
-          // Por simplicidade, vamos usar um nome genérico aqui ou precisaríamos passá-lo.
-          // Se precisarmos do nome original, teremos que passar `document.file_name` para esta função.
-          currentResult = await addTorrentFileWithStream(originalSource, `file_${fileIndex}.torrent`); 
-        } else { // sourceType === 'magnet'
-          currentResult = await addMagnetLink(originalSource);
-        }
+
+        const currentResult = sourceType === 'torrent' 
+          ? await addTorrentFileWithStream(originalSource, `file_${fileIndex}.torrent`)
+          : await addMagnetLink(originalSource);
+
         torrentIdToUse = currentResult.id;
         console.log(`${sourceType} re-adicionado. Novo ID de torrent: ${torrentIdToUse}`);
-        await new Promise((resolve) => setTimeout(resolve, 2000)); // Espera
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       }
-
-      // Selecionar APENAS este arquivo usando o ID apropriado
       console.log(`Selecionando arquivo ID ${file.id} do torrent ID ${torrentIdToUse}`);
       await selectTorrentFiles(torrentIdToUse, [file.id.toString()]);
       
-      await ctx.reply(`✅ Arquivo ${fileIndex}/${totalFiles} (${file.path}) adicionado para download.`);
       console.log(`Seleção bem-sucedida para arquivo ${fileIndex}`);
+      // Atualizar array de atualizações recentes
+      const updateMsg = `✅ Arquivo ${fileIndex}/${totalFiles}: ${file.path}`;
+      recentUpdates.push(updateMsg);
+      if (recentUpdates.length > 2) recentUpdates.shift();
+
+      // Montar mensagem de status
+      const statusMsg = `Processando ${totalFiles} arquivo(s) individualmente...\n\n` +
+        `Progresso: ${fileIndex}/${totalFiles}\n` +
+        `Últimas atualizações:\n${recentUpdates.join('\n')}`;
+
+      // Editar a mensagem original
+      await ctx.api.editMessageText(
+        initialMessage.chat.id,
+        initialMessage.message_id,
+        statusMsg
+      );
+
       successCount++;
 
-      // Delay antes do próximo arquivo
       if (i < totalFiles - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 1000)); 
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
 
     } catch (processError) {
-      const errorMessage = processError instanceof Error ? processError.message : "Erro desconhecido";
-      console.error(`Erro ao processar arquivo ${fileIndex} (${file.path}) de ${sourceType}:`, errorMessage);
-      await ctx.reply(`⚠️ Falha ao processar arquivo ${fileIndex}/${totalFiles}: ${file.path} - ${errorMessage}`);
-      // Continuar para o próximo arquivo
+      const errorMsg = processError instanceof Error ? processError.message : "Erro desconhecido";
+      console.error(`Erro ao processar arquivo ${fileIndex} (${file.path}) de ${sourceType}:`, errorMsg);
+      
+      recentUpdates.push(`⚠️ Falha no arquivo ${fileIndex}/${totalFiles}: ${file.path}`);
+      if (recentUpdates.length > 2) recentUpdates.shift();
+
+      await ctx.api.editMessageText(
+        initialMessage.chat.id,
+        initialMessage.message_id,
+        `Processando ${totalFiles} arquivo(s)...\n\n` +
+        `Progresso: ${fileIndex}/${totalFiles}\n` +
+        `Últimas atualizações:\n${recentUpdates.join('\n')}`
+      );
     }
   }
 
   // Mensagem final
-  if (successCount === totalFiles) {
-    await ctx.reply(`✅ Todos os ${totalFiles} arquivos do ${sourceType} foram adicionados individualmente com sucesso!`);
-  } else {
-    await ctx.reply(`⚠️ Concluído. ${successCount} de ${totalFiles} arquivos do ${sourceType} foram adicionados. Alguns falharam.`);
-  }
+  const finalMsg = successCount === totalFiles
+    ? `✅ Todos os ${totalFiles} arquivos do ${sourceType} foram adicionados com sucesso!\n\n`
+    : `⚠️ Concluído. ${successCount} de ${totalFiles} arquivos do ${sourceType} foram adicionados.\n\n`;
+
+  await ctx.api.editMessageText(
+    initialMessage.chat.id,
+    initialMessage.message_id,
+    finalMsg + `Últimas atualizações:\n${recentUpdates.join('\n')}`
+  );
 }
 
 // Handler para arquivos .torrent

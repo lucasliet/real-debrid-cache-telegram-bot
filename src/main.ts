@@ -5,7 +5,9 @@ import { Environment } from "@/config/environment.ts";
 import { TorrentHandler } from "@/handlers/TorrentHandler.ts";
 import { WebhookService } from "@/services/WebhookService.ts";
 import { HelpService } from "@/services/HelpService.ts";
+import { RealDebridService } from "@/services/RealDebridService.ts";
 import type { MyContext } from "@/types/grammy.d.ts";
+import "../src/prototype/ContextExtensionPrototype.ts";
 
 const env = Environment.getInstance();
 const bot = new Bot<MyContext>(env.BOT_TOKEN);
@@ -13,8 +15,9 @@ const app = new Application();
 const torrentHandler = new TorrentHandler();
 const webhookService = WebhookService.getInstance();
 const helpService = HelpService.getInstance();
+const realDebridService = RealDebridService.getInstance();
 
-const ALLOWED_USER_ID = Number(Deno.env.get("ALLOWED_USER_ID") || 0);
+const ALLOWED_USER_ID = Environment.getInstance().ALLOWED_USER_ID;
 
 function isAllowedUser(ctx: MyContext): boolean {
   return ctx.from?.id === ALLOWED_USER_ID;
@@ -51,6 +54,46 @@ app.use(async (ctx, next) => {
 // Handlers
 bot.command("start", (ctx) => helpService.sendWelcome(ctx));
 bot.command("ajuda", (ctx) => helpService.sendHelp(ctx));
+
+bot.command("status", async (ctx) => {
+  try {
+    const torrents = await realDebridService.listTorrents();
+    const message = torrents.map(t => 
+      `**🆔 ID:** \`${t.id}\`\n**📂 Nome:** ${t.filename}\n**📊 Status:** ${t.status}\n**📈 Progresso:** ${t.progress}%\n──────────────`
+    ).join("\n\n");
+    ctx.replyInChunks(message || "❌ Nenhum torrent encontrado");
+  } catch (error) {
+    await ctx.reply(`❌ Erro ao listar torrents: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+});
+
+bot.command("incomplete", async (ctx) => {
+  try {
+    const torrents = await realDebridService.listTorrents();
+    const incompleteTorrents = torrents.filter(t => t.status !== 'downloaded');
+    const message = incompleteTorrents.map(t => 
+      `**🆔 ID:** \`${t.id}\`\n**📂 Nome:** ${t.filename}\n**📊 Status:** ${t.status}\n**📈 Progresso:** ${t.progress}%\n──────────────`
+    ).join("\n\n");
+    ctx.replyInChunks(message || "❌ Nenhum torrent incompleto encontrado");
+  } catch (error) {
+    await ctx.reply(`❌ Erro ao listar torrents: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+});
+
+bot.command("delete", async (ctx) => {
+  const id = ctx.message?.text.split(" ")[1];
+  if (!id) {
+    await ctx.reply("Por favor, forneça o ID do torrent. Exemplo: /delete 12345");
+    return;
+  }
+
+  try {
+    await realDebridService.deleteTorrent(id);
+    await ctx.reply(`Torrent ${id} deletado com sucesso!`);
+  } catch (error) {
+    await ctx.reply(`Erro ao deletar torrent: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+});
 
 bot.on("message:document", async (ctx) => {
   if (!ctx.message?.document?.file_name?.endsWith(".torrent")) {

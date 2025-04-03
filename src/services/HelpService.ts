@@ -35,7 +35,11 @@ export class HelpService {
       `   • Processar cada arquivo individualmente\n` +
       `   • Mostrar o progresso em tempo real\n\n` +
       `🔍 Extensões suportadas: ${allowedExtensions.join(', ')}\n\n` +
-      `⚠️ Importante: Apenas arquivos com essas extensões serão processados.`,
+      `⚠️ Importante: Apenas arquivos com essas extensões serão processados.` +
+      `📋 *Comandos Disponíveis*\n` +
+      `• /status - Lista todos os seus torrents com ID e status\n` +
+      `• /incomplete - Mostra apenas torrents não baixados\n` +
+      `• /delete <id> - Remove um torrent específico\n\n`,
       { parse_mode: "Markdown" }
     );
   }

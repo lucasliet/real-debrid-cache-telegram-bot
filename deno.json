@@ -13,7 +13,6 @@
     "@/services/": "./src/services/"
   },
   "compilerOptions": {
-    "lib": ["deno.window", "dom"],
     "strict": true
   },
   "lint": {

@@ -31,7 +31,6 @@ export class WebhookService {
   }
 
   setupCronJob(): void {
-    // @ts-ignore - Ignorando erro de tipo no Deno
     Deno.cron('Configure Telegram bot webhook', '0 0 * * *', () => {
       this.setWebhook();
     });

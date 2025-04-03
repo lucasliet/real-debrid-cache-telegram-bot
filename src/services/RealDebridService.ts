@@ -117,4 +117,41 @@ export class RealDebridService {
 
     return response.ok;
   }
+
+  async listTorrents(): Promise<TorrentSchema[]> {
+    const response = await fetch(
+      `${this.API_URL}/torrents`,
+      {
+        headers: {
+          "Authorization": `Bearer ${this.rdToken}`,
+        },
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`Erro ao listar torrents: ${error.error}`);
+    }
+
+    return await response.json();
+  }
+
+  async deleteTorrent(id: string): Promise<boolean> {
+    const response = await fetch(
+      `${this.API_URL}/torrents/delete/${id}`,
+      {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${this.rdToken}`,
+        },
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`Erro ao deletar torrent: ${error.error}`);
+    }
+
+    return response.ok;
+  }
 }

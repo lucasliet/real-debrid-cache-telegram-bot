@@ -76,8 +76,8 @@ function getTelegramFileUrl(fileData: { file_path?: string }): string {
  */
 async function addTorrentFileWithStream(
   fileUrl: string,
-  filename: string, // Embora filename não seja usado diretamente no envio, mantemos para logs/futuro
-): Promise<any> {
+  filename: string,
+): Promise<ResourceSchema> {
   try {
     console.log(`Baixando arquivo de: ${fileUrl}`);
     
@@ -126,13 +126,13 @@ async function addTorrentFileWithStream(
         const errorDetails = await response.json();
         console.error("Detalhes do erro JSON:", errorDetails);
         errorMessage = `Erro ao adicionar torrent: ${errorDetails.error || response.statusText} (Código: ${errorDetails.error_code})`;
-      } catch (jsonError) {
+      } catch (_jsonError) {
         try {
           const textError = await clonedResponse.text();
           console.error("Resposta de erro (texto):", textError);
           // Atualiza a mensagem de erro se o texto fornecer mais detalhes
           if (textError) errorMessage = `Erro ao adicionar torrent: ${response.status} ${response.statusText} - ${textError}`;
-        } catch (textParseError) {
+        } catch (_textParseError) {
           console.error("Não foi possível ler resposta de erro como texto");
         }
       }
@@ -159,7 +159,7 @@ async function addTorrentFileWithStream(
 /**
  * Adiciona um link magnet ao Real-Debrid
  */
-async function addMagnetLink(magnetUrl: string): Promise<any> {
+async function addMagnetLink(magnetUrl: string): Promise<ResourceSchema> {
   const formData = new FormData();
   formData.append("magnet", magnetUrl);
 
@@ -185,7 +185,7 @@ async function addMagnetLink(magnetUrl: string): Promise<any> {
 /**
  * Obtém informações do torrent
  */
-async function getTorrentInfo(id: string): Promise<any> {
+async function getTorrentInfo(id: string): Promise<TorrentSchema> {
   const response = await fetch(
     `${REAL_DEBRID_API}/torrents/info/${id}`,
     {
@@ -206,7 +206,7 @@ async function getTorrentInfo(id: string): Promise<any> {
 /**
  * Seleciona arquivos específicos do torrent
  */
-async function selectTorrentFiles(id: string, fileIds: string[]): Promise<any> {
+async function selectTorrentFiles(id: string, fileIds: string[]): Promise<boolean> {
   const formData = new FormData();
   formData.append("files", fileIds.join(","));
 
@@ -230,12 +230,32 @@ async function selectTorrentFiles(id: string, fileIds: string[]): Promise<any> {
 }
 
 /**
+ * Atualiza a mensagem de status do processamento
+ */
+async function updateProcessingMessage(
+  ctx: MyContext,
+  messageId: number,
+  chatId: number,
+  totalFiles: number,
+  currentIndex: number,
+  recentUpdates: string[],
+  processing?: string
+) {
+  const statusMsg = `Processando ${totalFiles} arquivo(s) individualmente...\n\n` +
+    `Progresso: ${currentIndex}/${totalFiles}\n` +
+    `Últimas atualizações:\n${recentUpdates.join('\n')}` +
+    (processing ? `\n${processing}` : '');
+
+  await ctx.api.editMessageText(chatId, messageId, statusMsg);
+}
+
+/**
  * Processa arquivos de um torrent/magnet individualmente
  */
 async function processFilesIndividually(
   ctx: MyContext,
   initialTorrentId: string,
-  unfilteredFilesToProcess: any[],
+  unfilteredFilesToProcess: TorrentFile[],
   sourceType: 'torrent' | 'magnet',
   originalSource: string
 ) {
@@ -255,17 +275,17 @@ async function processFilesIndividually(
     const file = filesToProcess[i];
     const fileIndex = i + 1;
     const processingMessage = `➡️ Processando arquivo ${fileIndex}/${totalFiles}: ${file.path}`;
-    // Montar mensagem de status
-    const statusMsg = `Processando ${totalFiles} arquivo(s) individualmente...\n\n` +
-    `Progresso: ${fileIndex}/${totalFiles}\n` +
-    `Últimas atualizações:\n${recentUpdates.join('\n')}\n${processingMessage}`;
-
-    // Editar a mensagem original
-    await ctx.api.editMessageText(
-      initialMessage.chat.id,
+    
+    await updateProcessingMessage(
+      ctx,
       initialMessage.message_id,
-      statusMsg
+      initialMessage.chat.id,
+      totalFiles,
+      fileIndex,
+      recentUpdates,
+      processingMessage
     );
+
     console.log(`Processando arquivo ${fileIndex}/${totalFiles} (ID: ${file.id}) de ${sourceType}`);
 
     try {
@@ -294,16 +314,13 @@ async function processFilesIndividually(
       recentUpdates.push(updateMsg);
       if (recentUpdates.length > 2) recentUpdates.shift();
 
-      // Montar mensagem de status
-      const statusMsg = `Processando ${totalFiles} arquivo(s) individualmente...\n\n` +
-        `Progresso: ${fileIndex}/${totalFiles}\n` +
-        `Últimas atualizações:\n${recentUpdates.join('\n')}`;
-
-      // Editar a mensagem original
-      await ctx.api.editMessageText(
-        initialMessage.chat.id,
+      await updateProcessingMessage(
+        ctx,
         initialMessage.message_id,
-        statusMsg
+        initialMessage.chat.id,
+        totalFiles,
+        fileIndex,
+        recentUpdates
       );
 
       successCount++;
@@ -319,12 +336,13 @@ async function processFilesIndividually(
       recentUpdates.push(`⚠️ Falha no arquivo ${fileIndex}/${totalFiles}: ${file.path}`);
       if (recentUpdates.length > 2) recentUpdates.shift();
 
-      await ctx.api.editMessageText(
-        initialMessage.chat.id,
+      await updateProcessingMessage(
+        ctx,
         initialMessage.message_id,
-        `Processando ${totalFiles} arquivo(s)...\n\n` +
-        `Progresso: ${fileIndex}/${totalFiles}\n` +
-        `Últimas atualizações:\n${recentUpdates.join('\n')}`
+        initialMessage.chat.id,
+        totalFiles,
+        fileIndex,
+        recentUpdates
       );
     }
   }
@@ -465,6 +483,7 @@ APP.use(async (ctx, next) => {
 
 // Inicializar webhooks (para Deno Deploy)
 if (Deno.env.get("DENO_DEPLOYMENT_ID")) {
+  // @ts-ignore - Ignorando erro de tipo no Deno
   Deno.cron('Configure Telegram bot webhook', '0 0 * * *', () => {
     setWebhook();
   });

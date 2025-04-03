@@ -18,6 +18,7 @@ const helpService = HelpService.getInstance();
 const realDebridService = RealDebridService.getInstance();
 
 const ALLOWED_USER_ID = Environment.getInstance().ALLOWED_USER_ID;
+const TINFOIL_USER_PASS = Environment.getInstance().TINFOIL_USER_PASS;
 
 function isAllowedUser(ctx: MyContext): boolean {
   return ctx.from?.id === ALLOWED_USER_ID;
@@ -54,6 +55,19 @@ app.use(async (ctx, next) => {
 // Handlers
 bot.command("start", (ctx) => helpService.sendWelcome(ctx));
 bot.command("ajuda", (ctx) => helpService.sendHelp(ctx));
+
+bot.command("updatetinfoil", async (ctx) => {
+  try {
+    const response = await fetch(`http://${TINFOIL_USER_PASS}@foil.lucasliet.com.br/update`);
+    if (response.ok) {
+      await ctx.reply("✅ Atualização do Tinfoil concluída com sucesso!");
+    } else {
+      await ctx.reply("❌ Erro ao atualizar Tinfoil: " + response.statusText);
+    }
+  } catch (error) {
+    await ctx.reply(`❌ Erro ao atualizar Tinfoil: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+});
 
 bot.command("status", async (ctx) => {
   try {

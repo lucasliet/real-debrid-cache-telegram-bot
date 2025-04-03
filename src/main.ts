@@ -14,6 +14,21 @@ const torrentHandler = new TorrentHandler();
 const webhookService = WebhookService.getInstance();
 const helpService = HelpService.getInstance();
 
+const ALLOWED_USER_ID = Number(Deno.env.get("ALLOWED_USER_ID") || 0);
+
+function isAllowedUser(ctx: MyContext): boolean {
+  return ctx.from?.id === ALLOWED_USER_ID;
+}
+
+// Middleware global para verificar permissão
+bot.use(async (ctx, next) => {
+  if (!isAllowedUser(ctx)) {
+    await ctx.reply("Desculpe, você não tem permissão para usar este bot.");
+    return;
+  }
+  await next();
+});
+
 app.use(oakCors());
 
 app.use(async (ctx, next) => {

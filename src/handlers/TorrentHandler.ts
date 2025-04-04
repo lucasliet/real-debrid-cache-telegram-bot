@@ -3,6 +3,7 @@ import { RealDebridService } from "@/services/RealDebridService.ts";
 import { MessageService } from "@/services/MessageService.ts";
 import { TelegramService } from "@/services/TelegramService.ts";
 import { allowedExtensions } from "@/config/constants.ts";
+import { TorrentFile } from '@/types/realdebrid.d.ts';
 
 export class TorrentHandler {
   private readonly realDebrid: RealDebridService;
@@ -89,6 +90,29 @@ export class TorrentHandler {
       const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
       console.error("Erro no processamento do link magnet:", errorMessage);
       await ctx.reply(`Erro ao processar o link magnet: ${errorMessage}`);
+    }
+  }
+
+  async handleDownload(ctx: MyContext, torrentId: string): Promise<void> {
+    try {
+      const links = await this.realDebrid.getTorrentLinks(torrentId);
+      if (links.length === 0) {
+        await ctx.reply("❌ Nenhum link de download encontrado para este torrent");
+        return;
+      }
+
+      const unrestricted = await Promise.all(
+        links.map(link => this.realDebrid.unrestrictLink(link))
+      );
+
+      let message = "📥 Links de download:\n\n";
+      unrestricted.forEach((file, index) => {
+        message += `${index + 1}. ${file.filename}\n${file.download}\n\n`;
+      });
+
+      ctx.replyInChunks(message);
+    } catch (error) {
+      await ctx.reply(`❌ Erro ao obter links: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

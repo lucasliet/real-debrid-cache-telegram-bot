@@ -222,4 +222,33 @@ export class RealDebridService {
 
     return await response.json();
   }
+
+  async searchByFileName(query: string): Promise<{torrents: TorrentSchema[], downloads: UnrestrictSchema[]}> {
+    const [torrents, downloads] = await Promise.all([
+      this.listTorrents(),
+      this.listDownloads()
+    ]);
+
+    const normalizeString = (str: string): string => {
+      return str.toLowerCase()
+        .replace(/[._\-]/g, ' ') // substitui ponto, underline e traço por espaço
+        .replace(/\s+/g, ' ')    // substitui múltiplos espaços por um único
+        .trim();                 // remove espaços do início e fim
+    };
+
+    const normalizedQuery = normalizeString(query);
+    
+    const filteredTorrents = torrents.filter(t => 
+      normalizeString(t.filename).includes(normalizedQuery)
+    );
+    
+    const filteredDownloads = downloads.filter(d => 
+      normalizeString(d.filename).includes(normalizedQuery)
+    );
+
+    return {
+      torrents: filteredTorrents,
+      downloads: filteredDownloads
+    };
+  }
 }

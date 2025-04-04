@@ -127,6 +127,17 @@ export class TorrentHandler {
       const fileExtension = file.path.split('.').pop()?.toLowerCase();
       return fileExtension && allowedExtensions.includes(fileExtension);
     });
+
+    if (filesToProcess.length < unfilteredFilesToProcess.length) {
+      console.log('Não foi encontrado roms do switch, redirecionando para processamento completo');
+      await this.processTorrentComplete(
+        ctx,
+        initialTorrentId,
+        unfilteredFilesToProcess,
+        sourceType
+      );
+      return;
+    }
     
     const totalFiles = filesToProcess.length;
     let successCount = 0;
@@ -221,5 +232,41 @@ export class TorrentHandler {
       initialMessage.message_id,
       finalMsg + `Últimas atualizações:\n${recentUpdates.join('\n')}`
     );
+  }
+
+  private async processTorrentComplete(
+    ctx: MyContext,
+    torrentId: string,
+    files: TorrentFile[],
+    sourceType: 'torrent' | 'magnet'
+  ): Promise<void> {
+    try {
+      const totalFiles = files.length;
+      await ctx.reply(`Processando ${totalFiles} arquivo(s) em conjunto...`);
+
+      const fileIds = files.map(file => file.id.toString());
+      await this.realDebrid.selectTorrentFiles(torrentId, fileIds);
+
+      const updateMsg = await ctx.reply('✅ Todos os arquivos foram selecionados para download e estão sendo processados.\n\nUse /incomplete para verificar o progresso.');
+      
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      
+      const torrentInfo = await this.realDebrid.getTorrentInfo(torrentId);
+      await ctx.api.editMessageText(
+        updateMsg.chat.id,
+        updateMsg.message_id,
+        `📥 Torrent adicionado com sucesso!\n\n` +
+        `🆔 ID: \`${torrentId}\`\n` +
+        `📊 Status: ${torrentInfo.status}\n` +
+        `📈 Progresso: ${torrentInfo.progress}%\n\n` +
+        `Use /status_torrent ou /incomplete para verificar o progresso.\n` +
+        `Use /download ${torrentId} para baixar quando completo.`
+      );
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+      console.error(`Erro ao processar torrent completo:`, errorMessage);
+      await ctx.reply(`❌ Erro ao processar o ${sourceType}: ${errorMessage}`);
+    }
   }
 }

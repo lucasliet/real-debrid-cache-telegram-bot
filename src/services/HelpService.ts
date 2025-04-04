@@ -37,11 +37,11 @@ export class HelpService {
       `🔍 Extensões suportadas: ${allowedExtensions.join(', ')}\n\n` +
       `⚠️ Importante: Apenas arquivos com essas extensões serão processados.` +
       `📋 *Comandos Disponíveis*\n` +
-      `• /status_torrent - Lista todos os seus torrents com ID e status\n` +
-      `• /status_download - Lista todos os seus downloads com ID e tamanho\n` +
+      `• /status\_torrent - Lista todos os seus torrents com ID e status\n` +
+      `• /status\_download - Lista todos os seus downloads com ID e tamanho\n` +
       `• /incomplete - Mostra apenas torrents não baixados\n` +
-      `• /delete_torrent <id> - Remove um torrent específico\n` +
-      `• /delete_download <id> - Remove um link de download específico\n\n`,
+      `• /delete\_torrent <id> - Remove um torrent específico\n` +
+      `• /delete\_download <id> - Remove um link de download específico\n\n`,
       { parse_mode: "Markdown" }
     );
   }

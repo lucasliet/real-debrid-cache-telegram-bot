@@ -32,16 +32,16 @@ export class HelpService {
       `1. Envie um arquivo .torrent ou link magnet\n` +
       `2. O bot irá:\n` +
       `   • Analisar o conteúdo\n` +
-      `   • Processar cada arquivo individualmente\n` +
+      `   • Processar cada arquivo individualmente (extensões suportadas)\n` +
       `   • Mostrar o progresso em tempo real\n\n` +
-      `🔍 Extensões suportadas: ${allowedExtensions.join(', ')}\n\n` +
-      `⚠️ Importante: Apenas arquivos com essas extensões serão processados.` +
+      `🔍 Extensões suportadas para processamento individual: ${allowedExtensions.join(', ')}\n\n` +
       `📋 *Comandos Disponíveis*\n` +
       `• /status\\_torrent - Lista todos os seus torrents com ID e status\n` +
       `• /status\\_download - Lista todos os seus downloads com ID e tamanho\n` +
       `• /incomplete - Mostra apenas torrents não baixados\n` +
       `• /delete\\_torrent <id> - Remove um torrent específico\n` +
-      `• /delete\\_download <id> - Remove um link de download específico\n\n`,
+      `• /delete\\_download <id> - Remove um link de download específico\n` +
+      `• /stream <id> - Mostra links de streaming para um torrent baixado (se disponível)\n\n` +
       { parse_mode: "Markdown" }
     );
   }

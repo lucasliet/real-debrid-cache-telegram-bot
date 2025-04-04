@@ -1,5 +1,5 @@
 import { Environment } from "@/config/environment.ts";
-import type { ResourceSchema, TorrentSchema, UnrestrictSchema } from "@/types/realdebrid.d.ts";
+import type { ResourceSchema, StreamingSchema, TorrentSchema, UnrestrictSchema } from "@/types/realdebrid.d.ts";
 
 export class RealDebridService {
   private static instance: RealDebridService;
@@ -250,5 +250,23 @@ export class RealDebridService {
       torrents: filteredTorrents,
       downloads: filteredDownloads
     };
+  }
+
+  async getStreamingInfo(id: string): Promise<StreamingSchema> {
+    const response = await fetch(
+      `${this.API_URL}/streaming/transcode/${id}`,
+      {
+        headers: {
+          "Authorization": `Bearer ${this.rdToken}`,
+        },
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`Erro ao obter informações de streaming: ${error.error}`);
+    }
+
+    return await response.json();
   }
 }

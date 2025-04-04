@@ -42,6 +42,17 @@ interface ResourceSchema {
     uri: string;
 }
 
+interface StreamQualityMap {
+  [quality: string]: string;
+}
+
+interface StreamingSchema {
+  apple: StreamQualityMap;   // M3U8 Live Streaming format
+  dash: StreamQualityMap;    // MPD Live Streaming format
+  liveMP4: StreamQualityMap; // Live MP4
+  h264WebM: StreamQualityMap;// Live H264 WebM
+}
+
 export interface UnrestrictSchema {
   id: string;
   filename: string;

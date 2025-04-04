@@ -82,7 +82,7 @@ bot.command("status_torrent", async (ctx) => {
   try {
     const torrents = await realDebridService.listTorrents();
     const message = torrents.map(t => 
-      `**🆔 ID:** \`${t.id}\` [❌](tg://resolve?domain=real_debrid_auto_cache_bot&text=/delete_torrent ${t.id}) [⬇️](tg://resolve?domain=real_debrid_auto_cache_bot&text=/download ${t.id})\n**📂 Nome:** ${t.filename}\n**📊 Status:** ${t.status}\n**📈 Progresso:** ${t.progress}%\n──────────────`
+      `**🆔 ID:** \`${t.id}\`\n**📂 Nome:** ${t.filename}\n**📊 Status:** ${t.status}\n**📈 Progresso:** ${t.progress}%\n──────────────\n[   🗑️ Deletar   ](tg://resolve?domain=real_debrid_auto_cache_bot&text=/delete_torrent ${t.id}) [   ⬇️ Baixar   ](tg://resolve?domain=real_debrid_auto_cache_bot&text=/download ${t.id})\n──────────────`
     ).join("\n\n");
     ctx.replyInChunks(message || "❌ Nenhum torrent encontrado");
   } catch (error) {
@@ -94,7 +94,7 @@ bot.command("status_download", async (ctx) => {
   try {
     const downloads = await realDebridService.listDownloads();
     const message = downloads.map(d => 
-      `**🆔 ID:** \`${d.id}\` [❌](tg://resolve?domain=real_debrid_auto_cache_bot&text=/delete_download ${d.id}) [⬇️](${d.download})\n**📂 Nome:** ${d.filename}\n**💾 Tamanho:** ${(d.filesize / 1024 / 1024).toFixed(2)}MB\n──────────────`
+      `**🆔 ID:** \`${d.id}\`\n**📂 Nome:** ${d.filename}\n**💾 Tamanho:** ${(d.filesize / 1024 / 1024).toFixed(2)}MB\n──────────────\n[   🗑️ Deletar   ](tg://resolve?domain=real_debrid_auto_cache_bot&text=/delete_download ${d.id}) [   ⬇️ Baixar   ](${d.download})\n──────────────`
     ).join("\n\n");
     ctx.replyInChunks(message || "❌ Nenhum download encontrado");
   } catch (error) {
@@ -107,7 +107,7 @@ bot.command("incomplete", async (ctx) => {
     const torrents = await realDebridService.listTorrents();
     const incompleteTorrents = torrents.filter(t => t.status !== 'downloaded');
     const message = incompleteTorrents.map(t => 
-      `**🆔 ID:** \`${t.id}\` [❌](tg://resolve?domain=real_debrid_auto_cache_bot&text=/delete_torrent ${t.id})\n**📂 Nome:** ${t.filename}\n**📊 Status:** ${t.status}\n**📈 Progresso:** ${t.progress}%\n──────────────`
+      `**🆔 ID:** \`${t.id}\`\n**📂 Nome:** ${t.filename}\n**📊 Status:** ${t.status}\n**📈 Progresso:** ${t.progress}%\n──────────────\n[   🗑️ Deletar   ](tg://resolve?domain=real_debrid_auto_cache_bot&text=/delete_torrent ${t.id})\n──────────────`
     ).join("\n\n");
     ctx.replyInChunks(message || "❌ Nenhum torrent incompleto encontrado");
   } catch (error) {
@@ -164,7 +164,7 @@ bot.on("message:text", async (ctx) => {
   if (searchResults.torrents.length > 0) {
     message += '📥 **Torrents encontrados:**\n\n';
     message += searchResults.torrents.map(t => 
-      `**🆔 ID:** \`${t.id}\` [❌](tg://resolve?domain=real_debrid_auto_cache_bot&text=/delete_torrent ${t.id}) [⬇️](tg://resolve?domain=real_debrid_auto_cache_bot&text=/download ${t.id})\n**📂 Nome:** ${t.filename}\n**📊 Status:** ${t.status}\n**📈 Progresso:** ${t.progress}%\n──────────────`
+      `**🆔 ID:** \`${t.id}\`\n**📂 Nome:** ${t.filename}\n**📊 Status:** ${t.status}\n**📈 Progresso:** ${t.progress}%\n──────────────\n[   🗑️ Deletar   ](tg://resolve?domain=real_debrid_auto_cache_bot&text=/delete_torrent ${t.id}) [   ⬇️ Baixar   ](tg://resolve?domain=real_debrid_auto_cache_bot&text=/download ${t.id})\n──────────────`
     ).join('\n\n');
   }
 
@@ -172,7 +172,7 @@ bot.on("message:text", async (ctx) => {
     if (message) message += '\n\n';
     message += '📦 **Downloads encontrados:**\n\n';
     message += searchResults.downloads.map(d => 
-      `**🆔 ID:** \`${d.id}\` [❌](tg://resolve?domain=real_debrid_auto_cache_bot&text=/delete_download ${d.id}) [⬇️](${d.download})\n**📂 Nome:** ${d.filename}\n**💾 Tamanho:** ${(d.filesize / 1024 / 1024).toFixed(2)}MB\n──────────────`
+      `**🆔 ID:** \`${d.id}\`\n**📂 Nome:** ${d.filename}\n**💾 Tamanho:** ${(d.filesize / 1024 / 1024).toFixed(2)}MB\n──────────────\n[   🗑️ Deletar   ](tg://resolve?domain=real_debrid_auto_cache_bot&text=/delete_download ${d.id}) [   ⬇️ Baixar   ](${d.download})\n──────────────`
     ).join('\n\n');
   }
 

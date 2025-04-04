@@ -93,9 +93,18 @@ bot.command("status_torrent", async (ctx) => {
 bot.command("status_download", async (ctx) => {
   try {
     const downloads = await realDebridService.listDownloads();
-    const message = downloads.map(d => 
-      `**🆔 ID:** \`${d.id}\`\n**📂 Nome:** ${d.filename}\n**💾 Tamanho:** ${(d.filesize / 1024 / 1024).toFixed(2)}MB\n──────────────\n[   🗑️ Deletar   ](tg://msg?text=/delete_download ${d.id}) [   ⬇️ Baixar   ](${d.download})\n──────────────`
-    ).join("\n\n");
+    const message = downloads.map(d => {
+      let downloadInfo = `**🆔 ID:** \`${d.id}\`\n**📂 Nome:** ${d.filename}\n**💾 Tamanho:** ${(d.filesize / 1024 / 1024).toFixed(2)}MB\n──────────────\n`;
+      
+      downloadInfo += `[   🗑️ Deletar   ](tg://msg?text=/delete_download ${d.id}) [   ⬇️ Baixar   ](${d.download})`;
+      
+      if (d.streamable === 1) {
+        downloadInfo += `\n──────────────\n[   🎥 Stream   ](tg://msg?text=/stream ${d.id})`;
+      }
+      
+      downloadInfo += "\n──────────────";
+      return downloadInfo;
+    }).join("\n\n");
     ctx.replyInChunks(message || "❌ Nenhum download encontrado");
   } catch (error) {
     await ctx.reply(`❌ Erro ao listar downloads: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -145,6 +154,54 @@ bot.command("delete_download", async (ctx) => {
   }
 });
 
+bot.command("stream", async (ctx) => {
+  const id = ctx.message?.text.split(" ")[1];
+  if (!id) {
+    await ctx.reply("Por favor, forneça o ID do arquivo. Exemplo: /stream 12345");
+    return;
+  }
+
+  try {
+    const streamInfo = await realDebridService.getStreamingInfo(id);
+    let message = "🎥 **Links de Streaming:**\n\n";
+    
+    if (Object.keys(streamInfo.apple).length > 0) {
+      message += "📱 **HLS (Apple):**\n";
+      Object.entries(streamInfo.apple).forEach(([quality, url]) => {
+        message += `${quality}: ${url}\n`;
+      });
+      message += "\n";
+    }
+    
+    if (Object.keys(streamInfo.dash).length > 0) {
+      message += "🎮 **DASH:**\n";
+      Object.entries(streamInfo.dash).forEach(([quality, url]) => {
+        message += `${quality}: ${url}\n`;
+      });
+      message += "\n";
+    }
+    
+    if (Object.keys(streamInfo.liveMP4).length > 0) {
+      message += "📹 **MP4:**\n";
+      Object.entries(streamInfo.liveMP4).forEach(([quality, url]) => {
+        message += `${quality}: ${url}\n`;
+      });
+      message += "\n";
+    }
+    
+    if (Object.keys(streamInfo.h264WebM).length > 0) {
+      message += "🎬 **WebM:**\n";
+      Object.entries(streamInfo.h264WebM).forEach(([quality, url]) => {
+        message += `${quality}: ${url}\n`;
+      });
+    }
+
+    await ctx.replyInChunks(message);
+  } catch (error) {
+    await ctx.reply(`❌ Erro ao obter informações de streaming: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+});
+
 bot.on("message:document", async (ctx) => {
   if (!ctx.message?.document?.file_name?.endsWith(".torrent")) {
     await helpService.sendInvalidFileHelp(ctx);
@@ -172,9 +229,17 @@ bot.on("message:text", async (ctx) => {
 
   if (searchResults.downloads.length > 0) {
     message = '📦 **Downloads encontrados:**\n\n';
-    message += searchResults.downloads.map(d => 
-      `**🆔 ID:** \`${d.id}\`\n**📂 Nome:** ${d.filename}\n**💾 Tamanho:** ${(d.filesize / 1024 / 1024).toFixed(2)}MB\n──────────────\n[   🗑️ Deletar   ](tg://msg?text=/delete_download ${d.id}) [   ⬇️ Baixar   ](${d.download})\n──────────────`
-    ).join('\n\n');
+    message += searchResults.downloads.map(d => {
+      let downloadInfo = `**🆔 ID:** \`${d.id}\`\n**📂 Nome:** ${d.filename}\n**💾 Tamanho:** ${(d.filesize / 1024 / 1024).toFixed(2)}MB\n──────────────\n`;
+      downloadInfo += `[   🗑️ Deletar   ](tg://msg?text=/delete_download ${d.id}) [   ⬇️ Baixar   ](${d.download})`;
+      
+      if (d.streamable === 1) {
+        downloadInfo += `\n──────────────\n[   🎥 Stream   ](tg://msg?text=/stream ${d.id})`;
+      }
+      
+      downloadInfo += "\n──────────────";
+      return downloadInfo;
+    }).join('\n\n');
   }
 
   if (!message) {

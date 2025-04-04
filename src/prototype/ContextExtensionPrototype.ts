@@ -9,27 +9,34 @@ declare module 'grammy' {
 
 /**
  * Split a large response into multiple message chunks
- */
-Context.prototype.replyInChunks = function (
+ * Edit a message with updated content, respecting rate limits
+ * Avoid hitting Telegram API rate limit https://core.telegram.org/bots/faq#broadcasting-to-users 
+*/
+Context.prototype.replyInChunks = async function (
 	this: Context,
 	output: string,
-): void {
+): Promise<void> {
 	if (output.length > 4096) {
 		const outputChunks = output.match(/[\s\S]{1,4093}/g)!;
 
-		outputChunks.forEach((chunk, index) => {
+		for (let index = 0; index < outputChunks.length; index++) {
+			const chunk = outputChunks[index];
 			const isLastChunk = index === outputChunks.length - 1;
 			const chunkOutput = `${chunk}${isLastChunk ? '' : '...'}`;
 
-			this.reply(chunkOutput, { parse_mode: 'Markdown' })
+			await this.reply(chunkOutput, { parse_mode: 'Markdown' })
 				.catch(() => {
 					console.warn(MARKDOWN_ERROR_MESSAGE, chunkOutput);
 					this.reply(chunkOutput);
 				});
-		});
+
+			if (!isLastChunk) {
+				await new Promise(resolve => setTimeout(resolve, 2000));
+			}
+		}
 		return;
 	}
-  this.reply(output, { parse_mode: 'Markdown' })
+	await this.reply(output, { parse_mode: 'Markdown' })
 		.catch(() => {
 			console.warn(MARKDOWN_ERROR_MESSAGE, output);
 			this.reply(output);

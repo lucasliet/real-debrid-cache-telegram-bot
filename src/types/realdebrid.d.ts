@@ -41,3 +41,16 @@ interface ResourceSchema {
     id: string;
     uri: string;
 }
+
+export interface UnrestrictSchema {
+  id: string;
+  filename: string;
+  mimeType: string;
+  filesize: number;
+  link: string;
+  host: string;
+  chunks: number;
+  crc: number;
+  download: string;
+  streamable: number;
+}

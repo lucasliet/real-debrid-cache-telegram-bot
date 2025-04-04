@@ -1,5 +1,5 @@
 import { Environment } from "@/config/environment.ts";
-import type { ResourceSchema, TorrentSchema } from "@/types/realdebrid.d.ts";
+import type { ResourceSchema, TorrentSchema, UnrestrictSchema } from "@/types/realdebrid.d.ts";
 
 export class RealDebridService {
   private static instance: RealDebridService;
@@ -153,5 +153,36 @@ export class RealDebridService {
     }
 
     return response.ok;
+  }
+
+  async getTorrentLinks(id: string): Promise<string[]> {
+    const torrentInfo = await this.getTorrentInfo(id);
+    if (!torrentInfo.links || torrentInfo.links.length === 0) {
+      throw new Error("Nenhum link disponível para este torrent");
+    }
+    return torrentInfo.links;
+  }
+
+  async unrestrictLink(link: string): Promise<UnrestrictSchema> {
+    const formData = new FormData();
+    formData.append("link", link);
+
+    const response = await fetch(
+      `${this.API_URL}/unrestrict/link`,
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${this.rdToken}`,
+        },
+        body: formData,
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`Erro ao desbloquear link: ${error.error}`);
+    }
+
+    return await response.json();
   }
 }

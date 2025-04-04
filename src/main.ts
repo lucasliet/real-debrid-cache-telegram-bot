@@ -69,6 +69,15 @@ bot.command("updatetinfoil", async (ctx) => {
   }
 });
 
+bot.command("download", async (ctx) => {
+  const id = ctx.message?.text.split(" ")[1];
+  if (!id) {
+    await ctx.reply("Por favor, forneça o ID do torrent. Exemplo: /download 12345");
+    return;
+  }
+  await torrentHandler.handleDownload(ctx, id);
+});
+
 bot.command("status", async (ctx) => {
   try {
     const torrents = await realDebridService.listTorrents();

@@ -162,15 +162,16 @@ bot.on("message:text", async (ctx) => {
   let message = '';
 
   if (searchResults.torrents.length > 0) {
-    message += '📥 **Torrents encontrados:**\n\n';
+    message = '📥 **Torrents encontrados:**\n\n';
     message += searchResults.torrents.map(t => 
       `**🆔 ID:** \`${t.id}\`\n**📂 Nome:** ${t.filename}\n**📊 Status:** ${t.status}\n**📈 Progresso:** ${t.progress}%\n──────────────\n[   🗑️ Deletar   ](tg://resolve?domain=real_debrid_auto_cache_bot&text=/delete_torrent ${t.id}) [   ⬇️ Baixar   ](tg://resolve?domain=real_debrid_auto_cache_bot&text=/download ${t.id})\n──────────────`
     ).join('\n\n');
+
+    await ctx.replyInChunks(message);
   }
 
   if (searchResults.downloads.length > 0) {
-    if (message) message += '\n\n';
-    message += '📦 **Downloads encontrados:**\n\n';
+    message = '📦 **Downloads encontrados:**\n\n';
     message += searchResults.downloads.map(d => 
       `**🆔 ID:** \`${d.id}\`\n**📂 Nome:** ${d.filename}\n**💾 Tamanho:** ${(d.filesize / 1024 / 1024).toFixed(2)}MB\n──────────────\n[   🗑️ Deletar   ](tg://resolve?domain=real_debrid_auto_cache_bot&text=/delete_download ${d.id}) [   ⬇️ Baixar   ](${d.download})\n──────────────`
     ).join('\n\n');

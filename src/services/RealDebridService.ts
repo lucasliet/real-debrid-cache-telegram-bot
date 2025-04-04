@@ -136,6 +136,24 @@ export class RealDebridService {
     return await response.json();
   }
 
+  async listDownloads(): Promise<UnrestrictSchema[]> {
+    const response = await fetch(
+      `${this.API_URL}/downloads`,
+      {
+        headers: {
+          "Authorization": `Bearer ${this.rdToken}`,
+        },
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`Erro ao listar downloads: ${error.error}`);
+    }
+
+    return await response.json();
+  }
+
   async deleteTorrent(id: string): Promise<boolean> {
     const response = await fetch(
       `${this.API_URL}/torrents/delete/${id}`,
@@ -150,6 +168,25 @@ export class RealDebridService {
     if (!response.ok) {
       const error = await response.json();
       throw new Error(`Erro ao deletar torrent: ${error.error}`);
+    }
+
+    return response.ok;
+  }
+
+  async deleteDownload(id: string): Promise<boolean> {
+    const response = await fetch(
+      `${this.API_URL}/downloads/delete/${id}`,
+      {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${this.rdToken}`,
+        },
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`Erro ao deletar download: ${error.error}`);
     }
 
     return response.ok;

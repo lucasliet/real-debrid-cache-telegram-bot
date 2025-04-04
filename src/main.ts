@@ -78,7 +78,7 @@ bot.command("download", async (ctx) => {
   await torrentHandler.handleDownload(ctx, id);
 });
 
-bot.command("status", async (ctx) => {
+bot.command("status_torrent", async (ctx) => {
   try {
     const torrents = await realDebridService.listTorrents();
     const message = torrents.map(t => 
@@ -87,6 +87,18 @@ bot.command("status", async (ctx) => {
     ctx.replyInChunks(message || "❌ Nenhum torrent encontrado");
   } catch (error) {
     await ctx.reply(`❌ Erro ao listar torrents: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+});
+
+bot.command("status_download", async (ctx) => {
+  try {
+    const downloads = await realDebridService.listDownloads();
+    const message = downloads.map(d => 
+      `**🆔 ID:** \`${d.id}\`\n**📂 Nome:** ${d.filename}\n**💾 Tamanho:** ${(d.filesize / 1024 / 1024).toFixed(2)}MB\n** ⬇️ Download:**: [aqui](${d.download})\n──────────────`
+    ).join("\n\n");
+    ctx.replyInChunks(message || "❌ Nenhum download encontrado");
+  } catch (error) {
+    await ctx.reply(`❌ Erro ao listar downloads: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 });
 
@@ -103,10 +115,10 @@ bot.command("incomplete", async (ctx) => {
   }
 });
 
-bot.command("delete", async (ctx) => {
+bot.command("delete_torrent", async (ctx) => {
   const id = ctx.message?.text.split(" ")[1];
   if (!id) {
-    await ctx.reply("Por favor, forneça o ID do torrent. Exemplo: /delete 12345");
+    await ctx.reply("Por favor, forneça o ID do torrent. Exemplo: /delete_torrent 12345");
     return;
   }
 
@@ -115,6 +127,21 @@ bot.command("delete", async (ctx) => {
     await ctx.reply(`Torrent ${id} deletado com sucesso!`);
   } catch (error) {
     await ctx.reply(`Erro ao deletar torrent: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+});
+
+bot.command("delete_download", async (ctx) => {
+  const id = ctx.message?.text.split(" ")[1];
+  if (!id) {
+    await ctx.reply("Por favor, forneça o ID do download. Exemplo: /delete_download 12345");
+    return;
+  }
+
+  try {
+    await realDebridService.deleteDownload(id);
+    await ctx.reply(`Download ${id} deletado com sucesso!`);
+  } catch (error) {
+    await ctx.reply(`Erro ao deletar download: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 });
 

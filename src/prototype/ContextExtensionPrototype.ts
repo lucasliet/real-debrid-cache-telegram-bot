@@ -3,7 +3,7 @@ const MARKDOWN_ERROR_MESSAGE = 'Error on markdown parse_mode, message:';
 
 declare module 'grammy' {
 	interface Context {
-		replyInChunks(output: string): void;
+		replyInChunks(output: string): Promise<void>;
 	}
 }
 

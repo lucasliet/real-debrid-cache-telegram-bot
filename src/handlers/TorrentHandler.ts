@@ -3,7 +3,7 @@ import { RealDebridService } from "@/services/RealDebridService.ts";
 import { MessageService } from "@/services/MessageService.ts";
 import { TelegramService } from "@/services/TelegramService.ts";
 import { allowedExtensions } from "@/config/constants.ts";
-import { TorrentFile } from '@/types/realdebrid.d.ts';
+import { TorrentFile, UnrestrictSchema } from '@/types/realdebrid.d.ts';
 
 export class TorrentHandler {
   private readonly realDebrid: RealDebridService;
@@ -12,84 +12,31 @@ export class TorrentHandler {
 
   constructor() {
     this.realDebrid = RealDebridService.getInstance();
-    this.messageService = new MessageService();
+    this.messageService = MessageService.getInstance();
     this.telegramService = TelegramService.getInstance();
   }
 
   async handleTorrentFile(ctx: MyContext): Promise<void> {
     try {
       const document = ctx.message?.document;
-      if (!document?.file_name?.endsWith(".torrent")) {
-        await ctx.reply("Por favor, envie um arquivo .torrent válido.");
+      if (!this.isValidTorrentFile(document)) {
+        await ctx.reply(this.messageService.ERROR_MESSAGES.INVALID_TORRENT);
         return;
       }
-      console.log(`Arquivo recebido: ${document.file_name}, tipo: ${document.mime_type}, tamanho: ${document.file_size} bytes`);
-      
-      const fileData = await ctx.api.getFile(document.file_id);
-      const fileUrl = this.telegramService.getFileUrl(fileData);
 
-      await ctx.reply(`Analisando o arquivo torrent: ${document.file_name}...`);
-
-      try {
-        // 1. Adicionar uma vez para obter a lista de arquivos
-        console.log("Adicionando torrent inicialmente para obter lista de arquivos...");
-        const initialTorrentResult = await this.realDebrid.addTorrentFileWithStream(fileUrl); // Passar o nome original aqui
-        await ctx.reply("Aguardando análise inicial...");
-        await new Promise((resolve) => setTimeout(resolve, 5000)); 
-        const initialTorrentInfo = await this.realDebrid.getTorrentInfo(initialTorrentResult.id);
-
-        if (!initialTorrentInfo || !initialTorrentInfo.files || initialTorrentInfo.files.length === 0) {
-          throw new Error("Não foi possível obter a lista de arquivos do torrent inicial.");
-        }
-
-        // 2. Chamar a função de processamento comum
-        this.processFilesIndividually(
-            ctx,
-            initialTorrentResult.id,
-            initialTorrentInfo.files,
-            'torrent',
-            fileUrl // Passar a URL original do arquivo
-        );
-
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
-        console.error("Erro no processamento do torrent:", errorMessage);
-        await ctx.reply(`Erro ao processar o torrent: ${errorMessage}`);
-      }
+      const fileUrl = await this.getTorrentFileUrl(ctx, document);
+      await this.processTorrentSource(ctx, fileUrl, 'torrent');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
-      console.error("Erro geral no handler de documentos:", errorMessage);
-      await ctx.reply(`Erro inesperado: ${errorMessage}`);
+      await this.handleError(ctx, "Erro geral no handler de documentos", error);
     }
   }
 
   async handleMagnetLink(ctx: MyContext, magnetUrl: string): Promise<void> {
-    await ctx.reply(`Analisando o link magnet...`);
     try {
-      // 1. Adicionar uma vez para obter a lista de arquivos
-      console.log("Adicionando magnet inicialmente para obter lista de arquivos...");
-      const initialMagnetResult = await this.realDebrid.addMagnetLink(magnetUrl);
-      await ctx.reply("Aguardando análise inicial...");
-      await new Promise((resolve) => setTimeout(resolve, 5000)); 
-      const initialTorrentInfo = await this.realDebrid.getTorrentInfo(initialMagnetResult.id);
-
-      if (!initialTorrentInfo || !initialTorrentInfo.files || initialTorrentInfo.files.length === 0) {
-        throw new Error("Não foi possível obter a lista de arquivos do magnet inicial.");
-      }
-
-      // 2. Chamar a função de processamento comum
-      this.processFilesIndividually(
-        ctx, 
-        initialMagnetResult.id, 
-        initialTorrentInfo.files, 
-        'magnet', 
-        magnetUrl // Passar o link magnet original
-      );
-
+      await ctx.reply(this.messageService.MESSAGES.ANALYZING_MAGNET);
+      await this.processTorrentSource(ctx, magnetUrl, 'magnet');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
-      console.error("Erro no processamento do link magnet:", errorMessage);
-      await ctx.reply(`Erro ao processar o link magnet: ${errorMessage}`);
+      await this.handleError(ctx, "Erro no processamento do link magnet", error);
     }
   }
 
@@ -105,15 +52,72 @@ export class TorrentHandler {
         links.map(link => this.realDebrid.unrestrictLink(link))
       );
 
-      let message = "📥 Links de download:\n\n";
-      unrestricted.forEach((file, index) => {
-        message += `${index + 1}. ${file.filename}\n${file.download}\n\n`;
-      });
-
+      const message = this.formatDownloadLinks(unrestricted);
       ctx.replyInChunks(message);
     } catch (error) {
-      await ctx.reply(`❌ Erro ao obter links: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      await this.handleError(ctx, "Erro ao obter links", error);
     }
+  }
+
+  private async processTorrentSource(
+    ctx: MyContext, 
+    source: string, 
+    sourceType: 'torrent' | 'magnet'
+  ): Promise<void> {
+    try {
+      const initialResult = await this.addInitialTorrent(source, sourceType);
+      await ctx.reply(this.messageService.MESSAGES.WAITING_INITIAL_ANALYSIS);
+      
+      const torrentInfo = await this.waitAndGetTorrentInfo(initialResult.id);
+      
+      if (!this.isValidTorrentInfo(torrentInfo)) {
+        throw new Error(`Não foi possível obter a lista de arquivos do ${sourceType} inicial.`);
+      }
+
+      await this.processFilesIndividually(
+        ctx,
+        initialResult.id,
+        torrentInfo.files,
+        sourceType,
+        source
+      );
+    } catch (error) {
+      await this.handleError(ctx, `Erro no processamento do ${sourceType}`, error);
+    }
+  }
+
+  private async addInitialTorrent(source: string, sourceType: 'torrent' | 'magnet') {
+    return sourceType === 'torrent'
+      ? await this.realDebrid.addTorrentFileWithStream(source)
+      : await this.realDebrid.addMagnetLink(source);
+  }
+
+  private async waitAndGetTorrentInfo(torrentId: string) {
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    return await this.realDebrid.getTorrentInfo(torrentId);
+  }
+
+  private formatDownloadLinks(unrestricted: UnrestrictSchema[]): string {
+    return this.messageService.formatDownloadLinks(unrestricted);
+  }
+
+  private async handleError(ctx: MyContext, prefix: string, error: unknown): Promise<void> {
+    console.error(`${prefix}:`, error);
+    await ctx.reply(this.messageService.formatError(prefix, error));
+  }
+
+  private isValidTorrentFile(document: unknown): document is { file_name: string } {
+    return !!document && typeof (document as any).file_name === 'string' 
+           && (document as any).file_name.endsWith(".torrent");
+  }
+
+  private async getTorrentFileUrl(ctx: MyContext, document: any) {
+    const fileData = await ctx.api.getFile(document.file_id);
+    return this.telegramService.getFileUrl(fileData);
+  }
+
+  private isValidTorrentInfo(info: unknown): info is { files: TorrentFile[] } {
+    return !!info && Array.isArray((info as any).files) && (info as any).files.length > 0;
   }
 
   private async processFilesIndividually(

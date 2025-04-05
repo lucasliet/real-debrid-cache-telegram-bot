@@ -1,13 +1,13 @@
-import { Bot, webhookCallback } from "grammy";
-import { Application } from "oak";
-import { oakCors } from "oak/cors";
-import { Environment } from "@/config/environment.ts";
-import { TorrentHandler } from "@/handlers/TorrentHandler.ts";
-import { WebhookService } from "@/services/WebhookService.ts";
-import { HelpService } from "@/services/HelpService.ts";
-import { RealDebridService } from "@/services/RealDebridService.ts";
-import type { MyContext } from "@/types/grammy.d.ts";
-import "@/prototypes/ContextExtensionPrototype.ts";
+import { Bot, webhookCallback } from 'grammy';
+import { Application } from 'oak';
+import { oakCors } from 'oak/cors';
+import { Environment } from '@/config/environment.ts';
+import { TorrentHandler } from '@/handlers/TorrentHandler.ts';
+import { WebhookService } from '@/services/WebhookService.ts';
+import { HelpService } from '@/services/HelpService.ts';
+import { RealDebridService } from '@/services/RealDebridService.ts';
+import type { MyContext } from '@/types/grammy.d.ts';
+import '@/prototypes/ContextExtensionPrototype.ts';
 
 const env = Environment.getInstance();
 const bot = new Bot<MyContext>(env.BOT_TOKEN);
@@ -21,254 +21,306 @@ const ALLOWED_USER_ID = env.ALLOWED_USER_ID;
 const TINFOIL_USER_PASS = env.TINFOIL_USER_PASS;
 
 function isAllowedUser(ctx: MyContext): boolean {
-  return ctx.from?.id === ALLOWED_USER_ID;
+	return ctx.from?.id === ALLOWED_USER_ID;
 }
 
 bot.use(async (ctx, next) => {
-  if (!isAllowedUser(ctx)) {
-    await ctx.reply("Desculpe, você não tem permissão para usar este bot.");
-    return;
-  }
-  await next();
+	if (!isAllowedUser(ctx)) {
+		await ctx.reply('Desculpe, você não tem permissão para usar este bot.');
+		return;
+	}
+	await next();
 });
 
 app.use(oakCors());
 
 app.use(async (ctx, next) => {
-  try {
-    if (ctx.request.url.pathname === '/') {
-      ctx.response.status = 200;
-      ctx.response.body = 'Real-Debrid Cache Bot funcionando!';
-      webhookService.setWebhook();
-      return;
-    }
-    await next();
-  } catch (err) {
-    ctx.response.status = 500;
-    ctx.response.body = {
-      message: err instanceof Error ? err.message : 'Unknown error occurred',
-    };
-  }
+	try {
+		if (ctx.request.url.pathname === '/') {
+			ctx.response.status = 200;
+			ctx.response.body = 'Real-Debrid Cache Bot funcionando!';
+			webhookService.setWebhook();
+			return;
+		}
+		await next();
+	} catch (err) {
+		ctx.response.status = 500;
+		ctx.response.body = {
+			message: err instanceof Error ? err.message : 'Unknown error occurred',
+		};
+	}
 });
 
 // Handlers
-bot.command("start", (ctx) => helpService.sendWelcome(ctx));
-bot.command("ajuda", (ctx) => helpService.sendHelp(ctx));
+bot.command('start', (ctx) => helpService.sendWelcome(ctx));
+bot.command('ajuda', (ctx) => helpService.sendHelp(ctx));
 
-bot.command("updatetinfoil", async (ctx) => {
-  try {
-    const response = await fetch(`http://${TINFOIL_USER_PASS}@foil.lucasliet.com.br/update`);
-    if (response.ok) {
-      await ctx.reply("✅ Atualização do Tinfoil concluída com sucesso!");
-    } else {
-      await ctx.reply("❌ Erro ao atualizar Tinfoil: " + response.statusText);
-    }
-  } catch (error) {
-    await ctx.reply(`❌ Erro ao atualizar Tinfoil: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
+bot.command('updatetinfoil', async (ctx) => {
+	try {
+		const response = await fetch(
+			`http://${TINFOIL_USER_PASS}@foil.lucasliet.com.br/update`,
+		);
+		if (response.ok) {
+			await ctx.reply('✅ Atualização do Tinfoil concluída com sucesso!');
+		} else {
+			await ctx.reply('❌ Erro ao atualizar Tinfoil: ' + response.statusText);
+		}
+	} catch (error) {
+		await ctx.reply(
+			`❌ Erro ao atualizar Tinfoil: ${
+				error instanceof Error ? error.message : 'Unknown error'
+			}`,
+		);
+	}
 });
 
-bot.command("download", async (ctx) => {
-  const id = ctx.message?.text.split(" ")[1];
-  if (!id) {
-    await ctx.reply("Por favor, forneça o ID do torrent. Exemplo: /download 12345");
-    return;
-  }
-  torrentHandler.handleDownload(ctx, id);
+bot.command('download', async (ctx) => {
+	const id = ctx.message?.text.split(' ')[1];
+	if (!id) {
+		await ctx.reply(
+			'Por favor, forneça o ID do torrent. Exemplo: /download 12345',
+		);
+		return;
+	}
+	torrentHandler.handleDownload(ctx, id);
 });
 
-bot.command("status_torrent", async (ctx) => {
-  try {
-    const torrents = await realDebridService.listTorrents();
-    const message = torrents.map(t => 
-      `**🆔 ID:** \`${t.id}\`\n**📂 Nome:** ${t.filename}\n**📊 Status:** ${t.status}\n**📈 Progresso:** ${t.progress}%\n──────────────\n[   🗑️ Deletar   ](tg://msg?text=/delete_torrent ${t.id}) [   ⬇️ Baixar   ](tg://msg?text=/download ${t.id})\n──────────────`
-    ).join("\n\n");
-    ctx.replyInChunks(message || "❌ Nenhum torrent encontrado");
-  } catch (error) {
-    await ctx.reply(`❌ Erro ao listar torrents: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
+bot.command('status_torrent', async (ctx) => {
+	try {
+		const torrents = await realDebridService.listTorrents();
+		const message = torrents.map((t) =>
+			`**🆔 ID:** \`${t.id}\`\n**📂 Nome:** ${t.filename}\n**📊 Status:** ${t.status}\n**📈 Progresso:** ${t.progress}%\n──────────────\n[   🗑️ Deletar   ](tg://msg?text=/delete_torrent ${t.id}) [   ⬇️ Baixar   ](tg://msg?text=/download ${t.id})\n──────────────`
+		).join('\n\n');
+		ctx.replyInChunks(message || '❌ Nenhum torrent encontrado');
+	} catch (error) {
+		await ctx.reply(
+			`❌ Erro ao listar torrents: ${
+				error instanceof Error ? error.message : 'Unknown error'
+			}`,
+		);
+	}
 });
 
-bot.command("status_download", async (ctx) => {
-  try {
-    const downloads = await realDebridService.listDownloads();
-    const message = downloads.map(d => {
-      let downloadInfo = `**🆔 ID:** \`${d.id}\`\n**📂 Nome:** ${d.filename}\n**💾 Tamanho:** ${(d.filesize / 1024 / 1024).toFixed(2)}MB\n──────────────\n`;
-      
-      downloadInfo += `[   🗑️ Deletar   ](tg://msg?text=/delete_download ${d.id}) [   ⬇️ Baixar   ](${d.download})`;
-      
-      if (d.streamable === 1) {
-        downloadInfo += `\n──────────────\n[   🎥 Stream   ](tg://msg?text=/stream ${d.id})`;
-      }
-      
-      downloadInfo += "\n──────────────";
-      return downloadInfo;
-    }).join("\n\n");
-    ctx.replyInChunks(message || "❌ Nenhum download encontrado");
-  } catch (error) {
-    await ctx.reply(`❌ Erro ao listar downloads: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
+bot.command('status_download', async (ctx) => {
+	try {
+		const downloads = await realDebridService.listDownloads();
+		const message = downloads.map((d) => {
+			let downloadInfo =
+				`**🆔 ID:** \`${d.id}\`\n**📂 Nome:** ${d.filename}\n**💾 Tamanho:** ${
+					(d.filesize / 1024 / 1024).toFixed(2)
+				}MB\n──────────────\n`;
+
+			downloadInfo +=
+				`[   🗑️ Deletar   ](tg://msg?text=/delete_download ${d.id}) [   ⬇️ Baixar   ](${d.download})`;
+
+			if (d.streamable === 1) {
+				downloadInfo +=
+					`\n──────────────\n[   🎥 Stream   ](tg://msg?text=/stream ${d.id})`;
+			}
+
+			downloadInfo += '\n──────────────';
+			return downloadInfo;
+		}).join('\n\n');
+		ctx.replyInChunks(message || '❌ Nenhum download encontrado');
+	} catch (error) {
+		await ctx.reply(
+			`❌ Erro ao listar downloads: ${
+				error instanceof Error ? error.message : 'Unknown error'
+			}`,
+		);
+	}
 });
 
-bot.command("incomplete", async (ctx) => {
-  try {
-    const torrents = await realDebridService.listTorrents();
-    const incompleteTorrents = torrents.filter(t => t.status !== 'downloaded');
-    const message = incompleteTorrents.map(t => 
-      `**🆔 ID:** \`${t.id}\`\n**📂 Nome:** ${t.filename}\n**📊 Status:** ${t.status}\n**📈 Progresso:** ${t.progress}%\n──────────────\n[   🗑️ Deletar   ](tg://msg?text=/delete_torrent ${t.id})\n──────────────`
-    ).join("\n\n");
-    ctx.replyInChunks(message || "❌ Nenhum torrent incompleto encontrado");
-  } catch (error) {
-    await ctx.reply(`❌ Erro ao listar torrents: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
+bot.command('incomplete', async (ctx) => {
+	try {
+		const torrents = await realDebridService.listTorrents();
+		const incompleteTorrents = torrents.filter((t) =>
+			t.status !== 'downloaded'
+		);
+		const message = incompleteTorrents.map((t) =>
+			`**🆔 ID:** \`${t.id}\`\n**📂 Nome:** ${t.filename}\n**📊 Status:** ${t.status}\n**📈 Progresso:** ${t.progress}%\n──────────────\n[   🗑️ Deletar   ](tg://msg?text=/delete_torrent ${t.id})\n──────────────`
+		).join('\n\n');
+		ctx.replyInChunks(message || '❌ Nenhum torrent incompleto encontrado');
+	} catch (error) {
+		await ctx.reply(
+			`❌ Erro ao listar torrents: ${
+				error instanceof Error ? error.message : 'Unknown error'
+			}`,
+		);
+	}
 });
 
-bot.command("delete_torrent", async (ctx) => {
-  const id = ctx.message?.text.split(" ")[1];
-  if (!id) {
-    await ctx.reply("Por favor, forneça o ID do torrent. Exemplo: /delete_torrent 12345");
-    return;
-  }
+bot.command('delete_torrent', async (ctx) => {
+	const id = ctx.message?.text.split(' ')[1];
+	if (!id) {
+		await ctx.reply(
+			'Por favor, forneça o ID do torrent. Exemplo: /delete_torrent 12345',
+		);
+		return;
+	}
 
-  try {
-    await realDebridService.deleteTorrent(id);
-    ctx.reply(`Torrent ${id} deletado com sucesso!`);
-  } catch (error) {
-    await ctx.reply(`Erro ao deletar torrent: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
+	try {
+		await realDebridService.deleteTorrent(id);
+		ctx.reply(`Torrent ${id} deletado com sucesso!`);
+	} catch (error) {
+		await ctx.reply(
+			`Erro ao deletar torrent: ${
+				error instanceof Error ? error.message : 'Unknown error'
+			}`,
+		);
+	}
 });
 
-bot.command("delete_download", async (ctx) => {
-  const id = ctx.message?.text.split(" ")[1];
-  if (!id) {
-    await ctx.reply("Por favor, forneça o ID do download. Exemplo: /delete_download 12345");
-    return;
-  }
+bot.command('delete_download', async (ctx) => {
+	const id = ctx.message?.text.split(' ')[1];
+	if (!id) {
+		await ctx.reply(
+			'Por favor, forneça o ID do download. Exemplo: /delete_download 12345',
+		);
+		return;
+	}
 
-  try {
-    await realDebridService.deleteDownload(id);
-    ctx.reply(`Download ${id} deletado com sucesso!`);
-  } catch (error) {
-    await ctx.reply(`Erro ao deletar download: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
+	try {
+		await realDebridService.deleteDownload(id);
+		ctx.reply(`Download ${id} deletado com sucesso!`);
+	} catch (error) {
+		await ctx.reply(
+			`Erro ao deletar download: ${
+				error instanceof Error ? error.message : 'Unknown error'
+			}`,
+		);
+	}
 });
 
-bot.command("stream", async (ctx) => {
-  const id = ctx.message?.text.split(" ")[1];
-  if (!id) {
-    await ctx.reply("Por favor, forneça o ID do arquivo. Exemplo: /stream 12345");
-    return;
-  }
+bot.command('stream', async (ctx) => {
+	const id = ctx.message?.text.split(' ')[1];
+	if (!id) {
+		await ctx.reply(
+			'Por favor, forneça o ID do arquivo. Exemplo: /stream 12345',
+		);
+		return;
+	}
 
-  try {
-    const streamInfo = await realDebridService.getStreamingInfo(id);
-    let message = "🎥 **Links de Streaming:**\n\n";
-    
-    if (Object.keys(streamInfo.apple).length > 0) {
-      message += "📱 **HLS (Apple):**\n";
-      Object.entries(streamInfo.apple).forEach(([quality, url]) => {
-        message += `${quality}: ${url}\n`;
-      });
-      message += "\n";
-    }
-    
-    if (Object.keys(streamInfo.dash).length > 0) {
-      message += "🎮 **DASH:**\n";
-      Object.entries(streamInfo.dash).forEach(([quality, url]) => {
-        message += `${quality}: ${url}\n`;
-      });
-      message += "\n";
-    }
-    
-    if (Object.keys(streamInfo.liveMP4).length > 0) {
-      message += "📹 **MP4:**\n";
-      Object.entries(streamInfo.liveMP4).forEach(([quality, url]) => {
-        message += `${quality}: ${url}\n`;
-      });
-      message += "\n";
-    }
-    
-    if (Object.keys(streamInfo.h264WebM).length > 0) {
-      message += "🎬 **WebM:**\n";
-      Object.entries(streamInfo.h264WebM).forEach(([quality, url]) => {
-        message += `${quality}: ${url}\n`;
-      });
-    }
+	try {
+		const streamInfo = await realDebridService.getStreamingInfo(id);
+		let message = '🎥 **Links de Streaming:**\n\n';
 
-    ctx.replyInChunks(message);
-  } catch (error) {
-    await ctx.reply(`❌ Erro ao obter informações de streaming: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
+		if (Object.keys(streamInfo.apple).length > 0) {
+			message += '📱 **HLS (Apple):**\n';
+			Object.entries(streamInfo.apple).forEach(([quality, url]) => {
+				message += `${quality}: ${url}\n`;
+			});
+			message += '\n';
+		}
+
+		if (Object.keys(streamInfo.dash).length > 0) {
+			message += '🎮 **DASH:**\n';
+			Object.entries(streamInfo.dash).forEach(([quality, url]) => {
+				message += `${quality}: ${url}\n`;
+			});
+			message += '\n';
+		}
+
+		if (Object.keys(streamInfo.liveMP4).length > 0) {
+			message += '📹 **MP4:**\n';
+			Object.entries(streamInfo.liveMP4).forEach(([quality, url]) => {
+				message += `${quality}: ${url}\n`;
+			});
+			message += '\n';
+		}
+
+		if (Object.keys(streamInfo.h264WebM).length > 0) {
+			message += '🎬 **WebM:**\n';
+			Object.entries(streamInfo.h264WebM).forEach(([quality, url]) => {
+				message += `${quality}: ${url}\n`;
+			});
+		}
+
+		ctx.replyInChunks(message);
+	} catch (error) {
+		await ctx.reply(
+			`❌ Erro ao obter informações de streaming: ${
+				error instanceof Error ? error.message : 'Unknown error'
+			}`,
+		);
+	}
 });
 
-bot.on("message:document", async (ctx) => {
-  if (!ctx.message?.document?.file_name?.endsWith(".torrent")) {
-    await helpService.sendInvalidFileHelp(ctx);
-    return;
-  }
-  torrentHandler.handleTorrentFile(ctx);
+bot.on('message:document', async (ctx) => {
+	if (!ctx.message?.document?.file_name?.endsWith('.torrent')) {
+		await helpService.sendInvalidFileHelp(ctx);
+		return;
+	}
+	torrentHandler.handleTorrentFile(ctx);
 });
 
-bot.on("message:text", (ctx) => {
-  (async function handleTextMessage() {
-    if (ctx.message.text.startsWith("magnet:")) {
-      return torrentHandler.handleMagnetLink(ctx, ctx.message.text);
-    }
+bot.on('message:text', (ctx) => {
+	(async function handleTextMessage() {
+		if (ctx.message.text.startsWith('magnet:')) {
+			return torrentHandler.handleMagnetLink(ctx, ctx.message.text);
+		}
 
-    const searchResults = await realDebridService.searchByFileName(ctx.message.text);
-    let message = '';
+		const searchResults = await realDebridService.searchByFileName(
+			ctx.message.text,
+		);
+		let message = '';
 
-    if (searchResults.torrents.length > 0) {
-      message = '📥 **Torrents encontrados:**\n\n';
-      message += searchResults.torrents.map(t =>
-        `**🆔 ID:** \`${t.id}\`\n**📂 Nome:** ${t.filename}\n**📊 Status:** ${t.status}\n**📈 Progresso:** ${t.progress}%\n──────────────\n[   🗑️ Deletar   ](tg://msg?text=/delete_torrent ${t.id}) [   ⬇️ Baixar   ](tg://msg?text=/download ${t.id})\n──────────────`
-      ).join('\n\n');
+		if (searchResults.torrents.length > 0) {
+			message = '📥 **Torrents encontrados:**\n\n';
+			message += searchResults.torrents.map((t) =>
+				`**🆔 ID:** \`${t.id}\`\n**📂 Nome:** ${t.filename}\n**📊 Status:** ${t.status}\n**📈 Progresso:** ${t.progress}%\n──────────────\n[   🗑️ Deletar   ](tg://msg?text=/delete_torrent ${t.id}) [   ⬇️ Baixar   ](tg://msg?text=/download ${t.id})\n──────────────`
+			).join('\n\n');
+		}
 
-      await ctx.replyInChunks(message);
-    }
+		if (searchResults.downloads.length > 0) {
+			message = '📦 **Downloads encontrados:**\n\n';
+			message += searchResults.downloads.map((d) => {
+				let downloadInfo =
+					`**🆔 ID:** \`${d.id}\`\n**📂 Nome:** ${d.filename}\n**💾 Tamanho:** ${
+						(d.filesize / 1024 / 1024).toFixed(2)
+					}MB\n──────────────\n`;
+				downloadInfo +=
+					`[   🗑️ Deletar   ](tg://msg?text=/delete_download ${d.id}) [   ⬇️ Baixar   ](${d.download})`;
 
-    if (searchResults.downloads.length > 0) {
-      message = '📦 **Downloads encontrados:**\n\n';
-      message += searchResults.downloads.map(d => {
-        let downloadInfo = `**🆔 ID:** \`${d.id}\`\n**📂 Nome:** ${d.filename}\n**💾 Tamanho:** ${(d.filesize / 1024 / 1024).toFixed(2)}MB\n──────────────\n`;
-        downloadInfo += `[   🗑️ Deletar   ](tg://msg?text=/delete_download ${d.id}) [   ⬇️ Baixar   ](${d.download})`;
+				if (d.streamable === 1) {
+					downloadInfo +=
+						`\n──────────────\n[   🎥 Stream   ](tg://msg?text=/stream ${d.id})`;
+				}
 
-        if (d.streamable === 1) {
-          downloadInfo += `\n──────────────\n[   🎥 Stream   ](tg://msg?text=/stream ${d.id})`;
-        }
+				downloadInfo += '\n──────────────';
+				return downloadInfo;
+			}).join('\n\n');
+		}
 
-        downloadInfo += "\n──────────────";
-        return downloadInfo;
-      }).join('\n\n');
-    }
+		if (!message) {
+			message = '❌ Nenhum resultado encontrado para sua busca.';
+		}
 
-    if (!message) {
-      message = '❌ Nenhum resultado encontrado para sua busca.';
-    }
-
-    ctx.replyInChunks(message);
-  })().catch((error) => {
-    console.error("Erro ao processar mensagem de texto:", error);
-    ctx.reply("❌ Ocorreu um erro ao processar sua solicitação. Tente novamente mais tarde.");
-  });
+		ctx.replyInChunks(message);
+	})().catch((error) => {
+		console.error('Erro ao processar mensagem de texto:', error);
+		ctx.reply(
+			'❌ Ocorreu um erro ao processar sua solicitação. Tente novamente mais tarde.',
+		);
+	});
 });
 
 // Webhook setup e inicialização
-if (Deno.env.get("DENO_DEPLOYMENT_ID")) {
-  webhookService.setupCronJob();
-  app.use(webhookCallback(bot, 'oak'));
-  app.listen();
+if (Deno.env.get('DENO_DEPLOYMENT_ID')) {
+	webhookService.setupCronJob();
+	app.use(webhookCallback(bot, 'oak'));
+	app.listen();
 } else {
-  bot.start();
+	bot.start();
 
-  const cleanup = async () => {
-    await bot.stop();
-    
-    await webhookService.setWebhook();
-    console.log("Webhook configurado com sucesso. Encerrando...");
-    Deno.exit();
-  };
+	const cleanup = async () => {
+		await bot.stop();
 
-  Deno.addSignalListener("SIGINT", cleanup);
-  Deno.addSignalListener("SIGTERM", cleanup);
+		await webhookService.setWebhook();
+		console.log('Webhook configurado com sucesso. Encerrando...');
+		Deno.exit();
+	};
+
+	Deno.addSignalListener('SIGINT', cleanup);
+	Deno.addSignalListener('SIGTERM', cleanup);
 }

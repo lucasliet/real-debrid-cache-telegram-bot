@@ -333,4 +333,95 @@ export class TorrentHandler {
 			await ctx.reply(`❌ Erro ao processar o ${sourceType}: ${errorMessage}`);
 		}
 	}
+
+	async handleSearchText(ctx: MyContext, text: string): Promise<void> {
+		try {
+			const searchResults = await this.realDebrid.searchByFileName(text);
+			let message = '';
+
+			if (searchResults.torrents.length > 0) {
+				message = '📥 **Torrents encontrados:**\n\n';
+				message += searchResults.torrents.map((t) =>
+					`**🆔 ID:** \`${t.id}\`\n**📂 Nome:** ${t.filename}\n**📊 Status:** ${t.status}\n**📈 Progresso:** ${t.progress}%\n──────────────\n[   🗑️ Deletar   ](tg://msg?text=/delete_torrent ${t.id}) [   ⬇️ Baixar   ](tg://msg?text=/download ${t.id})\n──────────────`
+				).join('\n\n');
+			}
+
+			if (searchResults.downloads.length > 0) {
+				message = '📦 **Downloads encontrados:**\n\n';
+				message += searchResults.downloads.map((d) => {
+					let downloadInfo =
+						`**🆔 ID:** \`${d.id}\`\n**📂 Nome:** ${d.filename}\n**💾 Tamanho:** ${
+							(d.filesize / 1024 / 1024).toFixed(2)
+						}MB\n──────────────\n`;
+					downloadInfo +=
+						`[   🗑️ Deletar   ](tg://msg?text=/delete_download ${d.id}) [   ⬇️ Baixar   ](${d.download})`;
+
+					if (d.streamable === 1) {
+						downloadInfo +=
+							`\n──────────────\n[   🎥 Stream   ](tg://msg?text=/stream ${d.id})`;
+					}
+
+					downloadInfo += '\n──────────────';
+					return downloadInfo;
+				}).join('\n\n');
+			}
+
+			if (!message) {
+				message = '❌ Nenhum resultado encontrado para sua busca.';
+			}
+
+			ctx.replyInChunks(message);
+		} catch (error) {
+			console.error('Erro ao processar busca por texto:', error);
+			ctx.reply(
+				'❌ Ocorreu um erro ao processar sua solicitação. Tente novamente mais tarde.',
+			);
+		}
+	}
+
+	async handleStream(ctx: MyContext, id: string): Promise<void> {
+		try {
+			const streamInfo = await this.realDebrid.getStreamingInfo(id);
+			let message = '🎥 **Links de Streaming:**\n\n';
+
+			if (Object.keys(streamInfo.apple).length > 0) {
+				message += '📱 **HLS (Apple):**\n';
+				Object.entries(streamInfo.apple).forEach(([quality, url]) => {
+					message += `${quality}: ${url}\n`;
+				});
+				message += '\n';
+			}
+
+			if (Object.keys(streamInfo.dash).length > 0) {
+				message += '🎮 **DASH:**\n';
+				Object.entries(streamInfo.dash).forEach(([quality, url]) => {
+					message += `${quality}: ${url}\n`;
+				});
+				message += '\n';
+			}
+
+			if (Object.keys(streamInfo.liveMP4).length > 0) {
+				message += '📹 **MP4:**\n';
+				Object.entries(streamInfo.liveMP4).forEach(([quality, url]) => {
+					message += `${quality}: ${url}\n`;
+				});
+				message += '\n';
+			}
+
+			if (Object.keys(streamInfo.h264WebM).length > 0) {
+				message += '🎬 **WebM:**\n';
+				Object.entries(streamInfo.h264WebM).forEach(([quality, url]) => {
+					message += `${quality}: ${url}\n`;
+				});
+			}
+
+			ctx.replyInChunks(message);
+		} catch (error) {
+			await ctx.reply(
+				`❌ Erro ao obter informações de streaming: ${
+					error instanceof Error ? error.message : 'Unknown error'
+				}`,
+			);
+		}
+	}
 }

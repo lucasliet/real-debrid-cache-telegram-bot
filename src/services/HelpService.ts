@@ -34,17 +34,17 @@ export class HelpService {
 				`   • Analisar o conteúdo\n` +
 				`   • Processar cada arquivo individualmente (extensões suportadas)\n` +
 				`   • Mostrar o progresso em tempo real\n\n` +
-				`🔍 Extensões suportadas para processamento individual: ${
-					allowedExtensions.join(', ')
-				}\n\n` +
+				`🔍 Extensões suportadas para processamento individual: ${allowedExtensions.join(', ')}\n\n` +
 				`📋 *Comandos Disponíveis*\n` +
 				`• /status\\_torrent - Lista todos os seus torrents com ID e status\n` +
 				`• /status\\_download - Lista todos os seus downloads com ID e tamanho\n` +
 				`• /incomplete - Mostra apenas torrents não baixados\n` +
 				`• /delete\\_torrent <id> - Remove um torrent específico\n` +
 				`• /delete\\_download <id> - Remove um link de download específico\n` +
-				`• /stream <id> - Mostra links de streaming para um torrent baixado (se disponível)\n\n` +
-				{ parse_mode: 'Markdown' },
+				`• /clean\\_nsw - Remove todos os torrents de jogos de Nintendo Switch\n` +
+				`• /clean\\_by <termo> - Remove todos os torrents que contêm o termo especificado no nome\n` +
+				`• /stream <id> - Mostra links de streaming para um torrent baixado (se disponível)\n`,
+			{ parse_mode: 'Markdown' },
 		);
 	}
 

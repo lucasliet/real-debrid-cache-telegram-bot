@@ -10,8 +10,7 @@ export class MessageService {
 		recentUpdates: string[],
 		processing?: string,
 	): Promise<void> {
-		const statusMsg =
-			`Processando ${totalFiles} arquivo(s) individualmente...\n\n` +
+		const statusMsg = `Processando ${totalFiles} arquivo(s) individualmente...\n\n` +
 			`Progresso: ${currentIndex}/${totalFiles}\n` +
 			`Últimas atualizações:\n${recentUpdates.join('\n')}` +
 			(processing ? `\n${processing}` : '');

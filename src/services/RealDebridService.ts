@@ -1,10 +1,6 @@
 import { Environment } from '@/config/environment.ts';
-import type {
-	ResourceSchema,
-	StreamingSchema,
-	TorrentSchema,
-	UnrestrictSchema,
-} from '@/types/realdebrid.d.ts';
+import { allowedExtensions } from '@/config/constants.ts';
+import type { ResourceSchema, StreamingSchema, TorrentSchema, UnrestrictSchema } from '@/types/realdebrid.d.ts';
 
 export class RealDebridService {
 	private static instance: RealDebridService;
@@ -232,35 +228,73 @@ export class RealDebridService {
 		return await response.json();
 	}
 
+	private normalizeString(str: string): string {
+		return str.toLowerCase()
+			.replace(/[._\-]/g, ' ') // substitui ponto, underline e traço por espaço
+			.replace(/\s+/g, ' ') // substitui múltiplos espaços por um único
+			.trim(); // remove espaços do início e fim
+	}
+
+	private searchByNormalizedQuery<T extends { filename: string }>(
+		items: T[],
+		query: string,
+	): T[] {
+		const normalizedQuery = this.normalizeString(query);
+		return items.filter((item) => this.normalizeString(item.filename).includes(normalizedQuery));
+	}
+
+	async searchTorrents(query: string): Promise<TorrentSchema[]> {
+		const torrents = await this.listTorrents();
+		return this.searchByNormalizedQuery(torrents, query);
+	}
+
+	async searchDownloads(query: string): Promise<UnrestrictSchema[]> {
+		const downloads = await this.listDownloads();
+		return this.searchByNormalizedQuery(downloads, query);
+	}
+
 	async searchByFileName(
 		query: string,
 	): Promise<{ torrents: TorrentSchema[]; downloads: UnrestrictSchema[] }> {
 		const [torrents, downloads] = await Promise.all([
-			this.listTorrents(),
-			this.listDownloads(),
+			this.searchTorrents(query),
+			this.searchDownloads(query),
 		]);
+		console.log(`Encontrados ${torrents.length} torrents e ${downloads.length} downloads com "${query}" no nome.`);
+		return { torrents, downloads };
+	}
 
-		const normalizeString = (str: string): string => {
-			return str.toLowerCase()
-				.replace(/[._\-]/g, ' ') // substitui ponto, underline e traço por espaço
-				.replace(/\s+/g, ' ') // substitui múltiplos espaços por um único
-				.trim(); // remove espaços do início e fim
+	async cleanByName(
+		query: string,
+	): Promise<{ deleted: number; errors: string[] }> {
+		const result = {
+			deleted: 0,
+			errors: [] as string[],
 		};
 
-		const normalizedQuery = normalizeString(query);
+		try {
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+			const torrentsToDelete = await this.searchTorrents(query);
+			console.log(`Encontrados ${torrentsToDelete.length} torrents com "${query}" no nome.`);
+			for (const torrent of torrentsToDelete) {
+				try {
+					console.log(`Deletando torrent ${torrent.id} (${torrent.filename})...`);
+					await new Promise((resolve) => setTimeout(resolve, 1000));
+					await this.deleteTorrent(torrent.id);
+					result.deleted++;
+				} catch (error) {
+					result.errors.push(
+						`Erro ao deletar torrent ${torrent.id} (${torrent.filename}): ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
+					);
+				}
+			}
+		} catch (error) {
+			result.errors.push(
+				`Erro ao buscar torrents: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
+			);
+		}
 
-		const filteredTorrents = torrents.filter((t) =>
-			normalizeString(t.filename).includes(normalizedQuery)
-		);
-
-		const filteredDownloads = downloads.filter((d) =>
-			normalizeString(d.filename).includes(normalizedQuery)
-		);
-
-		return {
-			torrents: filteredTorrents,
-			downloads: filteredDownloads,
-		};
+		return result;
 	}
 
 	async getStreamingInfo(id: string): Promise<StreamingSchema> {
@@ -279,5 +313,40 @@ export class RealDebridService {
 		}
 
 		return await response.json();
+	}
+
+	async deleteSwitchTorrents(): Promise<
+		{ deleted: number; errors: string[] }
+	> {
+		const torrents = await this.listTorrents();
+		const result = {
+			deleted: 0,
+			errors: [] as string[],
+		};
+
+		for (const torrent of torrents) {
+			try {
+				console.log(`Verificando torrent ${torrent.id} (${torrent.filename})...`);
+				await new Promise((resolve) => setTimeout(resolve, 1000));
+				const info = await this.getTorrentInfo(torrent.id);
+
+				if (info.files) {
+					const fileExtensions = info.files.map((file) => file.path.split('.').pop()?.toLowerCase());
+
+					if (allowedExtensions.some((ext) => fileExtensions?.includes(ext))) {
+						console.log(`Deletando torrent ${torrent.id} (${torrent.filename})`);
+						await new Promise((resolve) => setTimeout(resolve, 1000));
+						await this.deleteTorrent(torrent.id);
+						result.deleted++;
+					}
+				}
+			} catch (error) {
+				result.errors.push(
+					`Erro ao processar torrent ${torrent.id}: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
+				);
+			}
+		}
+
+		return result;
 	}
 }

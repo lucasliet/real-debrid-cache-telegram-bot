@@ -20,6 +20,7 @@
 			"include": ["src/"]
 		},
 		"exclude": ["README.md", ".env"],
+		"lineWidth": 160,
 		"useTabs": true,
 		"semiColons": true,
 		"singleQuote": true

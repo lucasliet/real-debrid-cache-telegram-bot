@@ -55,23 +55,23 @@ app.use(async (ctx, next) => {
 bot.command('start', (ctx) => helpService.sendWelcome(ctx));
 bot.command('ajuda', (ctx) => helpService.sendHelp(ctx));
 
-bot.command('updatetinfoil', async (ctx) => {
-	try {
-		const response = await fetch(
-			`http://${TINFOIL_USER_PASS}@foil.lucasliet.com.br/update`,
-		);
-		if (response.ok) {
-			await ctx.reply('✅ Atualização do Tinfoil concluída com sucesso!');
-		} else {
-			await ctx.reply('❌ Erro ao atualizar Tinfoil: ' + response.statusText);
+bot.command('update_tinfoil', async (ctx) => {
+	(async function handleUpdateTinfoil() {
+		try {
+			const response = await fetch(
+				`http://${TINFOIL_USER_PASS}@foil.lucasliet.com.br/update`,
+			);
+			if (response.ok) {
+				await ctx.reply('✅ Atualização do Tinfoil concluída com sucesso!');
+			} else {
+				await ctx.reply('❌ Erro ao atualizar Tinfoil: ' + response.statusText);
+			}
+		} catch (error) {
+			await ctx.reply(
+				`❌ Erro ao atualizar Tinfoil: ${error instanceof Error ? error.message : 'Unknown error'}`,
+			);
 		}
-	} catch (error) {
-		await ctx.reply(
-			`❌ Erro ao atualizar Tinfoil: ${
-				error instanceof Error ? error.message : 'Unknown error'
-			}`,
-		);
-	}
+	})();
 });
 
 bot.command('download', async (ctx) => {
@@ -94,9 +94,7 @@ bot.command('status_torrent', async (ctx) => {
 		ctx.replyInChunks(message || '❌ Nenhum torrent encontrado');
 	} catch (error) {
 		await ctx.reply(
-			`❌ Erro ao listar torrents: ${
-				error instanceof Error ? error.message : 'Unknown error'
-			}`,
+			`❌ Erro ao listar torrents: ${error instanceof Error ? error.message : 'Unknown error'}`,
 		);
 	}
 });
@@ -105,17 +103,12 @@ bot.command('status_download', async (ctx) => {
 	try {
 		const downloads = await realDebridService.listDownloads();
 		const message = downloads.map((d) => {
-			let downloadInfo =
-				`**🆔 ID:** \`${d.id}\`\n**📂 Nome:** ${d.filename}\n**💾 Tamanho:** ${
-					(d.filesize / 1024 / 1024).toFixed(2)
-				}MB\n──────────────\n`;
+			let downloadInfo = `**🆔 ID:** \`${d.id}\`\n**📂 Nome:** ${d.filename}\n**💾 Tamanho:** ${(d.filesize / 1024 / 1024).toFixed(2)}MB\n──────────────\n`;
 
-			downloadInfo +=
-				`[   🗑️ Deletar   ](tg://msg?text=/delete_download ${d.id}) [   ⬇️ Baixar   ](${d.download})`;
+			downloadInfo += `[   🗑️ Deletar   ](tg://msg?text=/delete_download ${d.id}) [   ⬇️ Baixar   ](${d.download})`;
 
 			if (d.streamable === 1) {
-				downloadInfo +=
-					`\n──────────────\n[   🎥 Stream   ](tg://msg?text=/stream ${d.id})`;
+				downloadInfo += `\n──────────────\n[   🎥 Stream   ](tg://msg?text=/stream ${d.id})`;
 			}
 
 			downloadInfo += '\n──────────────';
@@ -124,9 +117,7 @@ bot.command('status_download', async (ctx) => {
 		ctx.replyInChunks(message || '❌ Nenhum download encontrado');
 	} catch (error) {
 		await ctx.reply(
-			`❌ Erro ao listar downloads: ${
-				error instanceof Error ? error.message : 'Unknown error'
-			}`,
+			`❌ Erro ao listar downloads: ${error instanceof Error ? error.message : 'Unknown error'}`,
 		);
 	}
 });
@@ -134,18 +125,14 @@ bot.command('status_download', async (ctx) => {
 bot.command('incomplete', async (ctx) => {
 	try {
 		const torrents = await realDebridService.listTorrents();
-		const incompleteTorrents = torrents.filter((t) =>
-			t.status !== 'downloaded'
-		);
+		const incompleteTorrents = torrents.filter((t) => t.status !== 'downloaded');
 		const message = incompleteTorrents.map((t) =>
 			`**🆔 ID:** \`${t.id}\`\n**📂 Nome:** ${t.filename}\n**📊 Status:** ${t.status}\n**📈 Progresso:** ${t.progress}%\n──────────────\n[   🗑️ Deletar   ](tg://msg?text=/delete_torrent ${t.id})\n──────────────`
 		).join('\n\n');
 		ctx.replyInChunks(message || '❌ Nenhum torrent incompleto encontrado');
 	} catch (error) {
 		await ctx.reply(
-			`❌ Erro ao listar torrents: ${
-				error instanceof Error ? error.message : 'Unknown error'
-			}`,
+			`❌ Erro ao listar torrents: ${error instanceof Error ? error.message : 'Unknown error'}`,
 		);
 	}
 });
@@ -164,9 +151,7 @@ bot.command('delete_torrent', async (ctx) => {
 		ctx.reply(`Torrent ${id} deletado com sucesso!`);
 	} catch (error) {
 		await ctx.reply(
-			`Erro ao deletar torrent: ${
-				error instanceof Error ? error.message : 'Unknown error'
-			}`,
+			`Erro ao deletar torrent: ${error instanceof Error ? error.message : 'Unknown error'}`,
 		);
 	}
 });
@@ -185,11 +170,57 @@ bot.command('delete_download', async (ctx) => {
 		ctx.reply(`Download ${id} deletado com sucesso!`);
 	} catch (error) {
 		await ctx.reply(
-			`Erro ao deletar download: ${
-				error instanceof Error ? error.message : 'Unknown error'
-			}`,
+			`Erro ao deletar download: ${error instanceof Error ? error.message : 'Unknown error'}`,
 		);
 	}
+});
+
+bot.command('clean_nsw', (ctx) => {
+	(async function handleCleanNSW() {
+		try {
+			const result = await realDebridService.deleteSwitchTorrents();
+			let message = `✅ ${result.deleted} torrent(s) de jogos de Nintendo Switch foram deletados.`;
+
+			if (result.errors.length > 0) {
+				message += '\n\n⚠️ Erros encontrados:\n';
+				message += result.errors.join('\n');
+			}
+
+			await ctx.reply(message);
+		} catch (error) {
+			await ctx.reply(
+				`❌ Erro ao limpar torrents de Switch: ${error instanceof Error ? error.message : 'Unknown error'}`,
+			);
+		}
+	})();
+});
+
+bot.command('clean_by', async (ctx) => {
+	const query = ctx.message?.text.split(' ').slice(1).join(' ');
+	if (!query) {
+		await ctx.reply(
+			'Por favor, forneça um termo de busca. Exemplo: /clean_by zelda',
+		);
+		return;
+	}
+
+	(async function handleCleanBy() {
+		try {
+			const result = await realDebridService.cleanByName(query);
+			let message = `✅ ${result.deleted} torrent(s) com "${query}" no nome foram deletados.`;
+
+			if (result.errors.length > 0) {
+				message += '\n\n⚠️ Erros encontrados:\n';
+				message += result.errors.join('\n');
+			}
+
+			await ctx.reply(message);
+		} catch (error) {
+			await ctx.reply(
+				`❌ Erro ao limpar torrents: ${error instanceof Error ? error.message : 'Unknown error'}`,
+			);
+		}
+	})();
 });
 
 bot.command('stream', async (ctx) => {

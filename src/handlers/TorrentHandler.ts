@@ -63,16 +63,12 @@ export class TorrentHandler {
 					fileUrl, // Passar a URL original do arquivo
 				);
 			} catch (error) {
-				const errorMessage = error instanceof Error
-					? error.message
-					: 'Erro desconhecido';
+				const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
 				console.error('Erro no processamento do torrent:', errorMessage);
 				await ctx.reply(`Erro ao processar o torrent: ${errorMessage}`);
 			}
 		} catch (error) {
-			const errorMessage = error instanceof Error
-				? error.message
-				: 'Erro desconhecido';
+			const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
 			console.error('Erro geral no handler de documentos:', errorMessage);
 			await ctx.reply(`Erro inesperado: ${errorMessage}`);
 		}
@@ -112,9 +108,7 @@ export class TorrentHandler {
 				magnetUrl, // Passar o link magnet original
 			);
 		} catch (error) {
-			const errorMessage = error instanceof Error
-				? error.message
-				: 'Erro desconhecido';
+			const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
 			console.error('Erro no processamento do link magnet:', errorMessage);
 			await ctx.reply(`Erro ao processar o link magnet: ${errorMessage}`);
 		}
@@ -142,9 +136,7 @@ export class TorrentHandler {
 			ctx.replyInChunks(message);
 		} catch (error) {
 			await ctx.reply(
-				`❌ Erro ao obter links: ${
-					error instanceof Error ? error.message : 'Unknown error'
-				}`,
+				`❌ Erro ao obter links: ${error instanceof Error ? error.message : 'Unknown error'}`,
 			);
 		}
 	}
@@ -188,8 +180,7 @@ export class TorrentHandler {
 		for (let i = 0; i < totalFiles; i++) {
 			const file = filesToProcess[i];
 			const fileIndex = i + 1;
-			const processingMessage =
-				`➡️ Processando arquivo ${fileIndex}/${totalFiles}: ${file.path}`;
+			const processingMessage = `➡️ Processando arquivo ${fileIndex}/${totalFiles}: ${file.path}`;
 
 			await this.messageService.updateProcessingMessage(
 				ctx,
@@ -226,8 +217,8 @@ export class TorrentHandler {
 					console.log(
 						`${sourceType} re-adicionado. Novo ID de torrent: ${torrentIdToUse}`,
 					);
-					await new Promise((resolve) => setTimeout(resolve, 1000));
 				}
+				await new Promise((resolve) => setTimeout(resolve, 1000));
 				console.log(
 					`Selecionando arquivo ID ${file.id} do torrent ID ${torrentIdToUse}`,
 				);
@@ -236,10 +227,9 @@ export class TorrentHandler {
 				]);
 
 				console.log(`Seleção bem-sucedida para arquivo ${fileIndex}`);
-				// Atualizar array de atualizações recentes
-				const updateMsg = `✅ Arquivo ${fileIndex}/${totalFiles}: ${
-					file.path.split('/').pop() || file.path
-				} adicionado com sucesso!`;
+
+				const updateMsg = `✅ Arquivo ${fileIndex}/${totalFiles}: ${file.path.split('/').pop() || file.path} adicionado com sucesso!`;
+
 				recentUpdates.push(updateMsg);
 				if (recentUpdates.length > 2) recentUpdates.shift();
 
@@ -254,13 +244,9 @@ export class TorrentHandler {
 
 				successCount++;
 
-				if (i < totalFiles - 1) {
-					await new Promise((resolve) => setTimeout(resolve, 1000));
-				}
+				await new Promise((resolve) => setTimeout(resolve, 1000));
 			} catch (processError) {
-				const errorMsg = processError instanceof Error
-					? processError.message
-					: 'Erro desconhecido';
+				const errorMsg = processError instanceof Error ? processError.message : 'Erro desconhecido';
 				console.error(
 					`Erro ao processar arquivo ${fileIndex} (${file.path}) de ${sourceType}:`,
 					errorMsg,
@@ -326,9 +312,7 @@ export class TorrentHandler {
 					`Use \`/download_torrent ${torrentId}\` para baixar quando completo.`,
 			);
 		} catch (error) {
-			const errorMessage = error instanceof Error
-				? error.message
-				: 'Erro desconhecido';
+			const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
 			console.error(`Erro ao processar torrent completo:`, errorMessage);
 			await ctx.reply(`❌ Erro ao processar o ${sourceType}: ${errorMessage}`);
 		}
@@ -344,33 +328,29 @@ export class TorrentHandler {
 				message += searchResults.torrents.map((t) =>
 					`**🆔 ID:** \`${t.id}\`\n**📂 Nome:** ${t.filename}\n**📊 Status:** ${t.status}\n**📈 Progresso:** ${t.progress}%\n──────────────\n[   🗑️ Deletar   ](tg://msg?text=/delete_torrent ${t.id}) [   ⬇️ Baixar   ](tg://msg?text=/download ${t.id})\n──────────────`
 				).join('\n\n');
+				ctx.replyInChunks(message);
 			}
 
 			if (searchResults.downloads.length > 0) {
 				message = '📦 **Downloads encontrados:**\n\n';
 				message += searchResults.downloads.map((d) => {
-					let downloadInfo =
-						`**🆔 ID:** \`${d.id}\`\n**📂 Nome:** ${d.filename}\n**💾 Tamanho:** ${
-							(d.filesize / 1024 / 1024).toFixed(2)
-						}MB\n──────────────\n`;
-					downloadInfo +=
-						`[   🗑️ Deletar   ](tg://msg?text=/delete_download ${d.id}) [   ⬇️ Baixar   ](${d.download})`;
+					let downloadInfo = `**🆔 ID:** \`${d.id}\`\n**📂 Nome:** ${d.filename}\n**💾 Tamanho:** ${(d.filesize / 1024 / 1024).toFixed(2)}MB\n──────────────\n`;
+					downloadInfo += `[   🗑️ Deletar   ](tg://msg?text=/delete_download ${d.id}) [   ⬇️ Baixar   ](${d.download})`;
 
 					if (d.streamable === 1) {
-						downloadInfo +=
-							`\n──────────────\n[   🎥 Stream   ](tg://msg?text=/stream ${d.id})`;
+						downloadInfo += `\n──────────────\n[   🎥 Stream   ](tg://msg?text=/stream ${d.id})`;
 					}
 
 					downloadInfo += '\n──────────────';
 					return downloadInfo;
 				}).join('\n\n');
+				ctx.replyInChunks(message);
 			}
 
 			if (!message) {
 				message = '❌ Nenhum resultado encontrado para sua busca.';
+				ctx.reply(message);
 			}
-
-			ctx.replyInChunks(message);
 		} catch (error) {
 			console.error('Erro ao processar busca por texto:', error);
 			ctx.reply(
@@ -418,9 +398,7 @@ export class TorrentHandler {
 			ctx.replyInChunks(message);
 		} catch (error) {
 			await ctx.reply(
-				`❌ Erro ao obter informações de streaming: ${
-					error instanceof Error ? error.message : 'Unknown error'
-				}`,
+				`❌ Erro ao obter informações de streaming: ${error instanceof Error ? error.message : 'Unknown error'}`,
 			);
 		}
 	}

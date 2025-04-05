@@ -29,7 +29,7 @@ bot.use(async (ctx, next) => {
     await ctx.reply("Desculpe, você não tem permissão para usar este bot.");
     return;
   }
-  next();
+  await next();
 });
 
 app.use(oakCors());
@@ -42,7 +42,7 @@ app.use(async (ctx, next) => {
       webhookService.setWebhook();
       return;
     }
-    next();
+    await next();
   } catch (err) {
     ctx.response.status = 500;
     ctx.response.body = {
@@ -74,7 +74,7 @@ bot.command("download", async (ctx) => {
     await ctx.reply("Por favor, forneça o ID do torrent. Exemplo: /download 12345");
     return;
   }
-  await torrentHandler.handleDownload(ctx, id);
+  torrentHandler.handleDownload(ctx, id);
 });
 
 bot.command("status_torrent", async (ctx) => {
@@ -132,7 +132,7 @@ bot.command("delete_torrent", async (ctx) => {
 
   try {
     await realDebridService.deleteTorrent(id);
-    await ctx.reply(`Torrent ${id} deletado com sucesso!`);
+    ctx.reply(`Torrent ${id} deletado com sucesso!`);
   } catch (error) {
     await ctx.reply(`Erro ao deletar torrent: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
@@ -147,7 +147,7 @@ bot.command("delete_download", async (ctx) => {
 
   try {
     await realDebridService.deleteDownload(id);
-    await ctx.reply(`Download ${id} deletado com sucesso!`);
+    ctx.reply(`Download ${id} deletado com sucesso!`);
   } catch (error) {
     await ctx.reply(`Erro ao deletar download: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
@@ -195,7 +195,7 @@ bot.command("stream", async (ctx) => {
       });
     }
 
-    await ctx.replyInChunks(message);
+    ctx.replyInChunks(message);
   } catch (error) {
     await ctx.reply(`❌ Erro ao obter informações de streaming: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
@@ -206,46 +206,51 @@ bot.on("message:document", async (ctx) => {
     await helpService.sendInvalidFileHelp(ctx);
     return;
   }
-  return torrentHandler.handleTorrentFile(ctx);
+  torrentHandler.handleTorrentFile(ctx);
 });
 
-bot.on("message:text", async (ctx) => {
-  if (ctx.message.text.startsWith("magnet:")) {
-    return torrentHandler.handleMagnetLink(ctx, ctx.message.text);
-  }
-  
-  const searchResults = await realDebridService.searchByFileName(ctx.message.text);
-  let message = '';
+bot.on("message:text", (ctx) => {
+  (async function handleTextMessage() {
+    if (ctx.message.text.startsWith("magnet:")) {
+      return torrentHandler.handleMagnetLink(ctx, ctx.message.text);
+    }
 
-  if (searchResults.torrents.length > 0) {
-    message = '📥 **Torrents encontrados:**\n\n';
-    message += searchResults.torrents.map(t => 
-      `**🆔 ID:** \`${t.id}\`\n**📂 Nome:** ${t.filename}\n**📊 Status:** ${t.status}\n**📈 Progresso:** ${t.progress}%\n──────────────\n[   🗑️ Deletar   ](tg://msg?text=/delete_torrent ${t.id}) [   ⬇️ Baixar   ](tg://msg?text=/download ${t.id})\n──────────────`
-    ).join('\n\n');
+    const searchResults = await realDebridService.searchByFileName(ctx.message.text);
+    let message = '';
 
-    await ctx.replyInChunks(message);
-  }
+    if (searchResults.torrents.length > 0) {
+      message = '📥 **Torrents encontrados:**\n\n';
+      message += searchResults.torrents.map(t =>
+        `**🆔 ID:** \`${t.id}\`\n**📂 Nome:** ${t.filename}\n**📊 Status:** ${t.status}\n**📈 Progresso:** ${t.progress}%\n──────────────\n[   🗑️ Deletar   ](tg://msg?text=/delete_torrent ${t.id}) [   ⬇️ Baixar   ](tg://msg?text=/download ${t.id})\n──────────────`
+      ).join('\n\n');
 
-  if (searchResults.downloads.length > 0) {
-    message = '📦 **Downloads encontrados:**\n\n';
-    message += searchResults.downloads.map(d => {
-      let downloadInfo = `**🆔 ID:** \`${d.id}\`\n**📂 Nome:** ${d.filename}\n**💾 Tamanho:** ${(d.filesize / 1024 / 1024).toFixed(2)}MB\n──────────────\n`;
-      downloadInfo += `[   🗑️ Deletar   ](tg://msg?text=/delete_download ${d.id}) [   ⬇️ Baixar   ](${d.download})`;
-      
-      if (d.streamable === 1) {
-        downloadInfo += `\n──────────────\n[   🎥 Stream   ](tg://msg?text=/stream ${d.id})`;
-      }
-      
-      downloadInfo += "\n──────────────";
-      return downloadInfo;
-    }).join('\n\n');
-  }
+      await ctx.replyInChunks(message);
+    }
 
-  if (!message) {
-    message = '❌ Nenhum resultado encontrado para sua busca.';
-  }
+    if (searchResults.downloads.length > 0) {
+      message = '📦 **Downloads encontrados:**\n\n';
+      message += searchResults.downloads.map(d => {
+        let downloadInfo = `**🆔 ID:** \`${d.id}\`\n**📂 Nome:** ${d.filename}\n**💾 Tamanho:** ${(d.filesize / 1024 / 1024).toFixed(2)}MB\n──────────────\n`;
+        downloadInfo += `[   🗑️ Deletar   ](tg://msg?text=/delete_download ${d.id}) [   ⬇️ Baixar   ](${d.download})`;
 
-  ctx.replyInChunks(message);
+        if (d.streamable === 1) {
+          downloadInfo += `\n──────────────\n[   🎥 Stream   ](tg://msg?text=/stream ${d.id})`;
+        }
+
+        downloadInfo += "\n──────────────";
+        return downloadInfo;
+      }).join('\n\n');
+    }
+
+    if (!message) {
+      message = '❌ Nenhum resultado encontrado para sua busca.';
+    }
+
+    ctx.replyInChunks(message);
+  })().catch((error) => {
+    console.error("Erro ao processar mensagem de texto:", error);
+    ctx.reply("❌ Ocorreu um erro ao processar sua solicitação. Tente novamente mais tarde.");
+  });
 });
 
 // Webhook setup e inicialização

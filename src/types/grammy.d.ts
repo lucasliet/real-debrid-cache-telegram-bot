@@ -1,11 +1,11 @@
-import { Context, SessionFlavor } from "grammy";
+import { Context, SessionFlavor } from 'grammy';
 
 export interface SessionData {
-  uploads: {
-    id: string;
-    filename: string;
-    status: string;
-  }[];
+	uploads: {
+		id: string;
+		filename: string;
+		status: string;
+	}[];
 }
 
 export type MyContext = Context & SessionFlavor<SessionData>;

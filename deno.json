@@ -1,27 +1,27 @@
 {
-  "tasks": {
-    "dev": "deno run --watch --allow-net --allow-read --allow-env --allow-import --allow-write --unstable-cron src/main.ts"
-  },
-  "imports": {
-    "grammy": "https://deno.land/x/grammy@v1.21.1/mod.ts",
-    "oak": "https://deno.land/x/oak@v12.6.1/mod.ts",
-    "oak/cors": "https://deno.land/x/cors@v1.2.2/mod.ts",
-    "@/": "./src/"
-  },
-  "compilerOptions": {
-    "strict": true
-  },
-  "lint": {
-    "include": ["*.ts"],
-    "exclude": ["README.md", ".env"]
-  },
-  "fmt": {
-    "include": ["*.ts"],
-    "exclude": ["README.md", ".env"],
-    "options": {
-			"useTabs": true,
-			"semiColons": true,
-			"singleQuote": true
-		}
-  }
+	"tasks": {
+		"dev": "deno run --watch --allow-net --allow-read --allow-env --allow-import --allow-write --unstable-cron src/main.ts"
+	},
+	"imports": {
+		"grammy": "https://deno.land/x/grammy@v1.21.1/mod.ts",
+		"oak": "https://deno.land/x/oak@v12.6.1/mod.ts",
+		"oak/cors": "https://deno.land/x/cors@v1.2.2/mod.ts",
+		"@/": "./src/"
+	},
+	"compilerOptions": {
+		"strict": true
+	},
+	"lint": {
+		"include": ["*.ts"],
+		"exclude": ["README.md", ".env"]
+	},
+	"fmt": {
+		"files": {
+			"include": ["src/"]
+		},
+		"exclude": ["README.md", ".env"],
+		"useTabs": true,
+		"semiColons": true,
+		"singleQuote": true
+	}
 }

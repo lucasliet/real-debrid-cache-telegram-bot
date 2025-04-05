@@ -10,8 +10,8 @@ declare module 'grammy' {
 /**
  * Split a large response into multiple message chunks
  * Edit a message with updated content, respecting rate limits
- * Avoid hitting Telegram API rate limit https://core.telegram.org/bots/faq#broadcasting-to-users 
-*/
+ * Avoid hitting Telegram API rate limit https://core.telegram.org/bots/faq#broadcasting-to-users
+ */
 Context.prototype.replyInChunks = async function (
 	this: Context,
 	output: string,
@@ -31,7 +31,7 @@ Context.prototype.replyInChunks = async function (
 				});
 
 			if (!isLastChunk) {
-				await new Promise(resolve => setTimeout(resolve, 2000));
+				await new Promise((resolve) => setTimeout(resolve, 2000));
 			}
 		}
 		return;
@@ -41,4 +41,4 @@ Context.prototype.replyInChunks = async function (
 			console.warn(MARKDOWN_ERROR_MESSAGE, output);
 			this.reply(output);
 		});
-}
+};

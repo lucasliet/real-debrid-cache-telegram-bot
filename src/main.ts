@@ -7,7 +7,7 @@ import { WebhookService } from "@/services/WebhookService.ts";
 import { HelpService } from "@/services/HelpService.ts";
 import { RealDebridService } from "@/services/RealDebridService.ts";
 import type { MyContext } from "@/types/grammy.d.ts";
-import "../src/prototype/ContextExtensionPrototype.ts";
+import "@/prototypes/ContextExtensionPrototype.ts";
 
 const env = Environment.getInstance();
 const bot = new Bot<MyContext>(env.BOT_TOKEN);

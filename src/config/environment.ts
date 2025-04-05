@@ -1,5 +1,3 @@
-import { load } from "std/dotenv";
-
 export class Environment {
   private static instance: Environment;
   private env: Record<string, string> = {};

@@ -4,13 +4,9 @@
   },
   "imports": {
     "grammy": "https://deno.land/x/grammy@v1.21.1/mod.ts",
-    "std/dotenv": "https://deno.land/std@0.212.0/dotenv/mod.ts",
     "oak": "https://deno.land/x/oak@v12.6.1/mod.ts",
     "oak/cors": "https://deno.land/x/cors@v1.2.2/mod.ts",
-    "@/config/": "./src/config/",
-    "@/types/": "./src/types/",
-    "@/handlers/": "./src/handlers/",
-    "@/services/": "./src/services/"
+    "@/": "./src/"
   },
   "compilerOptions": {
     "strict": true

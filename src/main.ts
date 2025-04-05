@@ -17,20 +17,19 @@ const webhookService = WebhookService.getInstance();
 const helpService = HelpService.getInstance();
 const realDebridService = RealDebridService.getInstance();
 
-const ALLOWED_USER_ID = Environment.getInstance().ALLOWED_USER_ID;
-const TINFOIL_USER_PASS = Environment.getInstance().TINFOIL_USER_PASS;
+const ALLOWED_USER_ID = env.ALLOWED_USER_ID;
+const TINFOIL_USER_PASS = env.TINFOIL_USER_PASS;
 
 function isAllowedUser(ctx: MyContext): boolean {
   return ctx.from?.id === ALLOWED_USER_ID;
 }
 
-// Middleware global para verificar permissão
 bot.use(async (ctx, next) => {
   if (!isAllowedUser(ctx)) {
     await ctx.reply("Desculpe, você não tem permissão para usar este bot.");
     return;
   }
-  await next();
+  next();
 });
 
 app.use(oakCors());
@@ -43,7 +42,7 @@ app.use(async (ctx, next) => {
       webhookService.setWebhook();
       return;
     }
-    await next();
+    next();
   } catch (err) {
     ctx.response.status = 500;
     ctx.response.body = {
@@ -256,4 +255,15 @@ if (Deno.env.get("DENO_DEPLOYMENT_ID")) {
   app.listen();
 } else {
   bot.start();
+
+  const cleanup = async () => {
+    await bot.stop();
+    
+    await webhookService.setWebhook();
+    console.log("Webhook configurado com sucesso. Encerrando...");
+    Deno.exit();
+  };
+
+  Deno.addSignalListener("SIGINT", cleanup);
+  Deno.addSignalListener("SIGTERM", cleanup);
 }

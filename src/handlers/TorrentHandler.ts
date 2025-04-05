@@ -35,7 +35,7 @@ export class TorrentHandler {
         console.log("Adicionando torrent inicialmente para obter lista de arquivos...");
         const initialTorrentResult = await this.realDebrid.addTorrentFileWithStream(fileUrl); // Passar o nome original aqui
         await ctx.reply("Aguardando análise inicial...");
-        await new Promise((resolve) => setTimeout(resolve, 5000)); 
+        await new Promise((resolve) => setTimeout(resolve, 1000)); 
         const initialTorrentInfo = await this.realDebrid.getTorrentInfo(initialTorrentResult.id);
 
         if (!initialTorrentInfo || !initialTorrentInfo.files || initialTorrentInfo.files.length === 0) {
@@ -70,7 +70,7 @@ export class TorrentHandler {
       console.log("Adicionando magnet inicialmente para obter lista de arquivos...");
       const initialMagnetResult = await this.realDebrid.addMagnetLink(magnetUrl);
       await ctx.reply("Aguardando análise inicial...");
-      await new Promise((resolve) => setTimeout(resolve, 5000)); 
+      await new Promise((resolve) => setTimeout(resolve, 1000)); 
       const initialTorrentInfo = await this.realDebrid.getTorrentInfo(initialMagnetResult.id);
 
       if (!initialTorrentInfo || !initialTorrentInfo.files || initialTorrentInfo.files.length === 0) {
@@ -178,7 +178,7 @@ export class TorrentHandler {
 
           torrentIdToUse = currentResult.id;
           console.log(`${sourceType} re-adicionado. Novo ID de torrent: ${torrentIdToUse}`);
-          await new Promise((resolve) => setTimeout(resolve, 2000));
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
         console.log(`Selecionando arquivo ID ${file.id} do torrent ID ${torrentIdToUse}`);
         await this.realDebrid.selectTorrentFiles(torrentIdToUse, [file.id.toString()]);
@@ -249,7 +249,7 @@ export class TorrentHandler {
 
       const updateMsg = await ctx.reply('✅ Todos os arquivos foram selecionados para download e estão sendo processados.\n\nUse /incomplete para verificar o progresso.');
       
-      await new Promise((resolve) => setTimeout(resolve, 5000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       
       const torrentInfo = await this.realDebrid.getTorrentInfo(torrentId);
       await ctx.api.editMessageText(
@@ -257,10 +257,11 @@ export class TorrentHandler {
         updateMsg.message_id,
         `📥 Torrent adicionado com sucesso!\n\n` +
         `🆔 ID: \`${torrentId}\`\n` +
+        `📂 Nome: ${torrentInfo.filename}\n` +
         `📊 Status: ${torrentInfo.status}\n` +
         `📈 Progresso: ${torrentInfo.progress}%\n\n` +
-        `Use /status_torrent ou /incomplete para verificar o progresso.\n` +
-        `Use /download ${torrentId} para baixar quando completo.`
+        `Digite parte do nome do arquivo ou /incomplete para verificar o progresso.\n` +
+        `Use \`/download_torrent ${torrentId}\` para baixar quando completo.`
       );
 
     } catch (error) {

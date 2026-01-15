@@ -31,8 +31,8 @@ export class WebhookService {
 	}
 
 	setupCronJob(): void {
-		Deno.cron('Configure Telegram bot webhook', '0 0 * * *', () => {
-			this.setWebhook();
-		});
+		// Deno.cron('Configure Telegram bot webhook', '0 0 * * *', () => {
+		// 	this.setWebhook();
+		// });
 	}
 }

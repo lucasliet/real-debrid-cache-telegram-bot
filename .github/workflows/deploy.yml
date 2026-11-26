@@ -22,7 +22,7 @@ jobs:
           deno-version: v2.x
 
       - name: Check types
-        run: deno check worker.ts
+        run: deno check --allow-import worker.ts
 
       - name: Bundle worker
         run: deno task build

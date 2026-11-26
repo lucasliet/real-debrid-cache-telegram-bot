@@ -1,11 +1,15 @@
 {
 	"tasks": {
-		"dev": "deno run --watch --allow-net --allow-read --allow-env --allow-import --allow-write --unstable-cron src/main.ts"
+		"dev": "deno run --watch --allow-net --allow-read --allow-env --allow-import --env-file=.env src/main.ts",
+		"build": "deno bundle --allow-import --platform=browser -o dist/worker.js worker.ts",
+		"dev:worker": "npx --yes wrangler@4.143.1 dev",
+		"deploy": "npx --yes wrangler@4.143.1 deploy"
 	},
 	"imports": {
 		"grammy": "https://deno.land/x/grammy@v1.21.1/mod.ts",
-		"oak": "https://deno.land/x/oak@v12.6.1/mod.ts",
-		"oak/cors": "https://deno.land/x/cors@v1.2.2/mod.ts",
+		"grammy-types": "https://deno.land/x/grammy@v1.21.1/types.ts",
+		"hono": "jsr:@hono/hono@^4",
+		"hono/cors": "jsr:@hono/hono@^4/cors",
 		"@/": "./src/"
 	},
 	"compilerOptions": {
@@ -13,7 +17,7 @@
 	},
 	"lint": {
 		"include": ["*.ts"],
-		"exclude": ["README.md", ".env"]
+		"exclude": ["README.md", ".env", "dist", ".wrangler"]
 	},
 	"fmt": {
 		"files": {

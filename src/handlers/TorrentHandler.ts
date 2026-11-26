@@ -55,7 +55,7 @@ export class TorrentHandler {
 				}
 
 				// 2. Chamar a função de processamento comum
-				this.processFilesIndividually(
+				await this.processFilesIndividually(
 					ctx,
 					initialTorrentResult.id,
 					initialTorrentInfo.files,
@@ -100,7 +100,7 @@ export class TorrentHandler {
 			}
 
 			// 2. Chamar a função de processamento comum
-			this.processFilesIndividually(
+			await this.processFilesIndividually(
 				ctx,
 				initialMagnetResult.id,
 				initialTorrentInfo.files,
@@ -133,7 +133,7 @@ export class TorrentHandler {
 				message += `${index + 1}. ${file.filename}\n${file.download}\n\n`;
 			});
 
-			ctx.replyInChunks(message);
+			await ctx.replyInChunks(message);
 		} catch (error) {
 			await ctx.reply(
 				`❌ Erro ao obter links: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -328,7 +328,7 @@ export class TorrentHandler {
 				message += searchResults.torrents.map((t) =>
 					`**🆔 ID:** \`${t.id}\`\n**📂 Nome:** ${t.filename}\n**📊 Status:** ${t.status}\n**📈 Progresso:** ${t.progress}%\n──────────────\n[   🗑️ Deletar   ](tg://msg?text=/delete_torrent ${t.id}) [   ⬇️ Baixar   ](tg://msg?text=/download ${t.id})\n──────────────`
 				).join('\n\n');
-				ctx.replyInChunks(message);
+				await ctx.replyInChunks(message);
 			}
 
 			if (searchResults.downloads.length > 0) {
@@ -344,16 +344,16 @@ export class TorrentHandler {
 					downloadInfo += '\n──────────────';
 					return downloadInfo;
 				}).join('\n\n');
-				ctx.replyInChunks(message);
+				await ctx.replyInChunks(message);
 			}
 
 			if (!message) {
 				message = '❌ Nenhum resultado encontrado para sua busca.';
-				ctx.reply(message);
+				await ctx.reply(message);
 			}
 		} catch (error) {
 			console.error('Erro ao processar busca por texto:', error);
-			ctx.reply(
+			await ctx.reply(
 				'❌ Ocorreu um erro ao processar sua solicitação. Tente novamente mais tarde.',
 			);
 		}
@@ -395,7 +395,7 @@ export class TorrentHandler {
 				});
 			}
 
-			ctx.replyInChunks(message);
+			await ctx.replyInChunks(message);
 		} catch (error) {
 			await ctx.reply(
 				`❌ Erro ao obter informações de streaming: ${error instanceof Error ? error.message : 'Unknown error'}`,

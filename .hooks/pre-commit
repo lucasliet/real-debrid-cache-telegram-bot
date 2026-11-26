@@ -1,8 +1,8 @@
 #!/bin/sh
+set -e
 
-# Run deno fmt on the src directory
-echo "Running deno fmt..."
+# Format, then re-stage whatever the formatter touched
 deno fmt
-
-# Add any files that were formatted
 git add -u
+
+deno lint

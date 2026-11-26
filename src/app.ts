@@ -11,7 +11,7 @@ import { deriveWebhookSecret, isValidWebhookSecret, WEBHOOK_SECRET_HEADER } from
 import type { MyContext } from '@/types/grammy.d.ts';
 import '@/prototypes/ContextExtensionPrototype.ts';
 
-const TINFOIL_UPDATE_URL = 'http://foil.lucasliet.com.br/update';
+const TINFOIL_UPDATE_URL = 'https://foil.lucasliet.com.br/update';
 
 function isAllowedUser(ctx: MyContext): boolean {
 	return ctx.from?.id === Environment.getInstance().ALLOWED_USER_ID;
@@ -30,6 +30,7 @@ async function updateTinfoil(ctx: MyContext): Promise<void> {
 	try {
 		const response = await fetch(TINFOIL_UPDATE_URL, {
 			headers: { 'Authorization': basicAuthHeader(Environment.getInstance().TINFOIL_USER_PASS) },
+			redirect: 'manual',
 		});
 		if (response.ok) {
 			await ctx.reply('✅ Atualização do Tinfoil concluída com sucesso!');
@@ -278,7 +279,13 @@ export function createWebhookApp(enqueueUpdate: (update: Update) => Promise<void
 	});
 
 	app.post('/webhook', async (c) => {
-		const expectedSecret = await deriveWebhookSecret(Environment.getInstance().BOT_TOKEN);
+		const botToken = Environment.getInstance().BOT_TOKEN;
+		if (!botToken) {
+			console.error('[WEBHOOK] BOT_TOKEN is not configured');
+			return c.json({ ok: false, error: 'not configured' }, 500);
+		}
+
+		const expectedSecret = await deriveWebhookSecret(botToken);
 		if (!isValidWebhookSecret(c.req.header(WEBHOOK_SECRET_HEADER), expectedSecret)) {
 			console.warn('[WEBHOOK] Rejected request without a valid secret token');
 			return c.json({ ok: false, error: 'unauthorized' }, 401);

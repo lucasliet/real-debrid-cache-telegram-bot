@@ -1,0 +1,100 @@
+import { SWITCH_ROM_EXTENSIONS } from '@/config/constants.ts';
+import type { RealDebridClient } from '@/realdebrid/RealDebridClient.ts';
+import type { Download, Torrent, UnrestrictedLink } from '@/realdebrid/types.ts';
+import { fileExtension } from '@/util/files.ts';
+import { UserFacingError } from '@/util/UserFacingError.ts';
+
+export interface SearchResult {
+	readonly torrents: Torrent[];
+	readonly downloads: Download[];
+}
+
+export interface BulkDeleteResult {
+	readonly deleted: Torrent[];
+	readonly failed: { readonly torrent: Torrent; readonly error: unknown }[];
+}
+
+/**
+ * Lowercase the text, strip diacritics and treat `.`, `_` and `-` as spaces,
+ * so "Zelda.Tears_of-the Kingdom" matches "zelda tears of the kingdom".
+ */
+export function normalizeForSearch(text: string): string {
+	return text
+		.normalize('NFD')
+		.replace(/\p{Diacritic}/gu, '')
+		.toLowerCase()
+		.replace(/[._-]+/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim();
+}
+
+function filterByName<T extends { filename: string }>(items: readonly T[], query: string): T[] {
+	const normalizedQuery = normalizeForSearch(query);
+	return items.filter((item) => normalizeForSearch(item.filename).includes(normalizedQuery));
+}
+
+/** Queries and bulk maintenance over the torrents and downloads already in the Real-Debrid account. */
+export class LibraryService {
+	constructor(private readonly realDebrid: RealDebridClient) {}
+
+	/** Find torrents and downloads whose name contains the query. */
+	async search(query: string): Promise<SearchResult> {
+		const [torrents, downloads] = await Promise.all([this.realDebrid.listAllTorrents(), this.realDebrid.listAllDownloads()]);
+		return { torrents: filterByName(torrents, query), downloads: filterByName(downloads, query) };
+	}
+
+	/** List the torrents that have not finished downloading, whatever the reason. */
+	async listIncompleteTorrents(): Promise<Torrent[]> {
+		const torrents = await this.realDebrid.listAllTorrents();
+		return torrents.filter((torrent) => torrent.status !== 'downloaded');
+	}
+
+	/**
+	 * Turn every hoster link of a torrent into a direct download link.
+	 * @throws UserFacingError when the torrent has no links yet
+	 */
+	async getDownloadLinks(torrentId: string): Promise<UnrestrictedLink[]> {
+		const { links } = await this.realDebrid.getTorrentInfo(torrentId);
+		if (!links?.length) {
+			throw new UserFacingError('Nenhum link disponível para este torrent. Ele já terminou de baixar?');
+		}
+		return Promise.all(links.map((link) => this.realDebrid.unrestrictLink(link)));
+	}
+
+	/** Delete every torrent whose name contains the query. */
+	async deleteTorrentsByName(query: string): Promise<BulkDeleteResult> {
+		const torrents = await this.realDebrid.listAllTorrents();
+		return this.deleteAll(filterByName(torrents, query));
+	}
+
+	/** Delete every torrent that contains at least one Nintendo Switch ROM. */
+	async deleteSwitchTorrents(): Promise<BulkDeleteResult> {
+		const result: BulkDeleteResult = { deleted: [], failed: [] };
+		for (const torrent of await this.realDebrid.listAllTorrents()) {
+			try {
+				const { files } = await this.realDebrid.getTorrentInfo(torrent.id);
+				if (!files?.some((file) => SWITCH_ROM_EXTENSIONS.has(fileExtension(file.path)))) continue;
+				await this.realDebrid.deleteTorrent(torrent.id);
+				result.deleted.push(torrent);
+			} catch (error) {
+				console.error(`[LIBRARY] Failed to process torrent ${torrent.id}:`, error);
+				result.failed.push({ torrent, error });
+			}
+		}
+		return result;
+	}
+
+	private async deleteAll(torrents: readonly Torrent[]): Promise<BulkDeleteResult> {
+		const result: BulkDeleteResult = { deleted: [], failed: [] };
+		for (const torrent of torrents) {
+			try {
+				await this.realDebrid.deleteTorrent(torrent.id);
+				result.deleted.push(torrent);
+			} catch (error) {
+				console.error(`[LIBRARY] Failed to delete torrent ${torrent.id}:`, error);
+				result.failed.push({ torrent, error });
+			}
+		}
+		return result;
+	}
+}

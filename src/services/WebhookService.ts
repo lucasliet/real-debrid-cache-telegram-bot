@@ -1,4 +1,5 @@
 import { Environment } from '@/config/environment.ts';
+import { deriveWebhookSecret } from '@/util/WebhookSecret.ts';
 
 export class WebhookService {
 	private static instance: WebhookService;
@@ -6,8 +7,9 @@ export class WebhookService {
 	private readonly webhookUrl: string;
 
 	private constructor() {
-		this.botToken = Environment.getInstance().BOT_TOKEN;
-		this.webhookUrl = 'https://real-debrid-cache-bot.deno.dev/webhook';
+		const env = Environment.getInstance();
+		this.botToken = env.BOT_TOKEN;
+		this.webhookUrl = env.SERVER_URL;
 	}
 
 	static getInstance(): WebhookService {
@@ -17,7 +19,12 @@ export class WebhookService {
 		return WebhookService.instance;
 	}
 
+	/**
+	 * Point the Telegram webhook to this worker, with a `secret_token` derived from the bot token
+	 * that Telegram echoes on every delivery so forged updates can be rejected.
+	 */
 	async setWebhook(): Promise<void> {
+		console.log(`Configurando webhook para: ${this.webhookUrl}`);
 		await fetch(`https://api.telegram.org/bot${this.botToken}/setWebhook`, {
 			method: 'POST',
 			headers: {
@@ -25,14 +32,8 @@ export class WebhookService {
 			},
 			body: JSON.stringify({
 				url: this.webhookUrl,
+				secret_token: await deriveWebhookSecret(this.botToken),
 			}),
 		});
-		console.log(`Configurando webhook para: ${this.webhookUrl}`);
-	}
-
-	setupCronJob(): void {
-		// Deno.cron('Configure Telegram bot webhook', '0 0 * * *', () => {
-		// 	this.setWebhook();
-		// });
 	}
 }

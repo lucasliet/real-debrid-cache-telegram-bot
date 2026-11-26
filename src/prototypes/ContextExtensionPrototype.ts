@@ -27,7 +27,7 @@ Context.prototype.replyInChunks = async function (
 			await this.reply(chunkOutput, { parse_mode: 'Markdown' })
 				.catch(() => {
 					console.warn(MARKDOWN_ERROR_MESSAGE, chunkOutput);
-					this.reply(chunkOutput);
+					return this.reply(chunkOutput);
 				});
 
 			if (!isLastChunk) {
@@ -39,6 +39,6 @@ Context.prototype.replyInChunks = async function (
 	await this.reply(output, { parse_mode: 'Markdown' })
 		.catch(() => {
 			console.warn(MARKDOWN_ERROR_MESSAGE, output);
-			this.reply(output);
+			return this.reply(output);
 		});
 };

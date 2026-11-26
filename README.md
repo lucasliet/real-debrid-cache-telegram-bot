@@ -46,6 +46,9 @@ npx wrangler@4.143.1 secret put BOT_TOKEN   # repita para RD_TOKEN, ALLOWED_USER
 deno task deploy
 ```
 
+Depois do primeiro deploy, desligue o projeto antigo no Deno Deploy (um `GET /` nele devolveria o webhook pra lá) e acesse
+`https://real-debrid-cache-bot.lucasliet.workers.dev/` para registrar o webhook do Worker no Telegram.
+
 - `SERVER_URL` já vem definido em `vars` no `wrangler.jsonc` (`https://real-debrid-cache-bot.lucasliet.workers.dev/webhook`); um `GET /` no worker reaplica o
   webhook no Telegram.
 - `static/` é publicado como static assets (ex.: `/robots.txt`).

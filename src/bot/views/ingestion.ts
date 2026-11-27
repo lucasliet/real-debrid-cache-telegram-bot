@@ -35,16 +35,21 @@ export class IngestionProgressView {
 }
 
 export function individualSummary(result: IndividualResult, describeError: (error: unknown) => string): string {
-	const total = result.added.length + result.failed.length;
-	if (result.failed.length === 0) {
+	const total = result.added.length + result.failed.length + result.skipped.length;
+	if (result.added.length === total) {
 		return `✅ Todos os ${total} arquivo(s) foram adicionados, cada um em seu próprio torrent.\n\nUse /incomplete para acompanhar o progresso.`;
 	}
-	return [
-		`⚠️ ${result.added.length} de ${total} arquivo(s) adicionados.`,
-		'',
-		bold('Falhas:'),
-		...failureLines(result.failed.map(({ file, error }) => `${escapeHtml(truncate(fileName(file.path)))}: ${escapeHtml(describeError(error))}`)),
-	].join('\n');
+
+	const lines = [`⚠️ ${result.added.length} de ${total} arquivo(s) adicionados.`];
+	if (result.skipped.length > 0) {
+		const names = result.skipped.map((file) => escapeHtml(truncate(fileName(file.path))));
+		lines.push('', bold(`⏱️ ${result.skipped.length} arquivo(s) não processados para não exceder o tempo de execução:`), ...failureLines(names));
+	}
+	if (result.failed.length > 0) {
+		const failures = result.failed.map(({ file, error }) => `${escapeHtml(truncate(fileName(file.path)))}: ${escapeHtml(describeError(error))}`);
+		lines.push('', bold('Falhas:'), ...failureLines(failures));
+	}
+	return lines.join('\n');
 }
 
 export function bundleSummary(torrent: TorrentInfo): string {

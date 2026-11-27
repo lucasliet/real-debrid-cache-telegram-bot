@@ -23,7 +23,13 @@ export type IngestionResult =
 	/** All files were selected in a single torrent. */
 	| { readonly strategy: 'bundle'; readonly torrent: TorrentInfo }
 	/** Each file became its own torrent. */
-	| { readonly strategy: 'individual'; readonly added: readonly TorrentFile[]; readonly failed: readonly FileFailure[] };
+	| {
+			readonly strategy: 'individual';
+			readonly added: readonly TorrentFile[];
+			readonly failed: readonly FileFailure[];
+			/** Files not attempted because the time budget ran out. */
+			readonly skipped: readonly TorrentFile[];
+	  };
 
 /** The torrent was accepted but Real-Debrid has not resolved its files yet (e.g. a magnet with few peers). */
 export class PendingTorrentError extends UserFacingError {
@@ -41,6 +47,12 @@ export interface TorrentIngestionOptions {
 	pollIntervalMs?: number;
 	/** Checks made before giving up on the file list. */
 	maxPollAttempts?: number;
+	now?: () => number;
+	/**
+	 * How long a per-file ingestion may run before it stops and reports what it did. A queue consumer is cut off
+	 * after 15 minutes of wall time, and the update is not redelivered, so the summary must be sent before that.
+	 */
+	timeBudgetMs?: number;
 }
 
 /**
@@ -52,6 +64,8 @@ export class TorrentIngestionService {
 	private readonly sleep: Sleep;
 	private readonly pollIntervalMs: number;
 	private readonly maxPollAttempts: number;
+	private readonly now: () => number;
+	private readonly timeBudgetMs: number;
 
 	constructor(
 		private readonly realDebrid: RealDebridClient,
@@ -60,6 +74,8 @@ export class TorrentIngestionService {
 		this.sleep = options.sleep ?? realSleep;
 		this.pollIntervalMs = options.pollIntervalMs ?? 1000;
 		this.maxPollAttempts = options.maxPollAttempts ?? 30;
+		this.now = options.now ?? Date.now;
+		this.timeBudgetMs = options.timeBudgetMs ?? 12 * 60 * 1000;
 	}
 
 	/**
@@ -70,6 +86,7 @@ export class TorrentIngestionService {
 	 * @throws UserFacingError when Real-Debrid cannot resolve the torrent's files
 	 */
 	async ingest(source: TorrentSource, onEvent: (event: IngestionEvent) => Promise<void> = async () => {}): Promise<IngestionResult> {
+		const deadline = this.now() + this.timeBudgetMs;
 		const first = await this.add(source);
 		const resolved = await this.discardUnlessPending(first.id, () => this.waitForFiles(first.id));
 		const files = resolved.files;
@@ -84,10 +101,12 @@ export class TorrentIngestionService {
 		const total = files.length;
 
 		for (const [index, file] of files.entries()) {
+			if (this.now() >= deadline) return { strategy: 'individual', added, failed, skipped: files.slice(index) };
+
 			const position = index + 1;
 			await onEvent({ type: 'file-started', position, total, file });
 			try {
-				await this.addSingleFile(source, file, index === 0 ? first.id : undefined);
+				await this.addSingleFile(source, file, deadline, index === 0 ? first.id : undefined);
 				added.push(file);
 				await onEvent({ type: 'file-added', position, total, file });
 			} catch (error) {
@@ -97,18 +116,19 @@ export class TorrentIngestionService {
 			}
 		}
 
-		return { strategy: 'individual', added, failed };
+		return { strategy: 'individual', added, failed, skipped: [] };
 	}
 
 	/**
 	 * Select a single file on its own copy of the torrent, discarding the copy when that fails
 	 * so no torrent is left behind waiting for a file selection.
+	 * @param deadline - When the whole ingestion must stop waiting
 	 * @param existingTorrentId - Copy already added (and resolved) to reuse instead of adding a new one
 	 */
-	private async addSingleFile(source: TorrentSource, file: TorrentFile, existingTorrentId?: string): Promise<void> {
+	private async addSingleFile(source: TorrentSource, file: TorrentFile, deadline: number, existingTorrentId?: string): Promise<void> {
 		const torrentId = existingTorrentId ?? (await this.add(source)).id;
 		try {
-			if (!existingTorrentId) await this.waitForFiles(torrentId);
+			if (!existingTorrentId) await this.waitForFiles(torrentId, deadline);
 			await this.realDebrid.selectFiles(torrentId, [file.id]);
 		} catch (error) {
 			// Unlike the first copy, an extra copy is always disposable: the file is simply reported as failed.
@@ -153,11 +173,12 @@ export class TorrentIngestionService {
 
 	/**
 	 * Poll the torrent until Real-Debrid knows its files (a magnet first goes through `magnet_conversion`).
+	 * @param deadline - Stop waiting at this time even if polls remain
 	 * @throws PendingTorrentError when the file list does not show up in time
 	 * @throws UserFacingError when Real-Debrid rejects the torrent
 	 */
-	private async waitForFiles(torrentId: string): Promise<TorrentInfo> {
-		for (let attempt = 1; attempt <= this.maxPollAttempts; attempt++) {
+	private async waitForFiles(torrentId: string, deadline = Number.POSITIVE_INFINITY): Promise<TorrentInfo> {
+		for (let attempt = 1; attempt <= this.maxPollAttempts && this.now() < deadline; attempt++) {
 			const info = await this.realDebrid.getTorrentInfo(torrentId);
 			if (FAILED_TORRENT_STATUSES.has(info.status)) {
 				throw new UserFacingError(`O Real-Debrid rejeitou o torrent (status: ${info.status}).`);

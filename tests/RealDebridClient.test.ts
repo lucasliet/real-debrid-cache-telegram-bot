@@ -90,6 +90,19 @@ test('retries rate-limited requests with exponential backoff', async () => {
 	assert.deepStrictEqual(sleeps, [2000, 4000]);
 });
 
+test('caps the wait asked by Retry-After', async () => {
+	const sleeps: number[] = [];
+	let calls = 0;
+	const limited: typeof fetch = () =>
+		Promise.resolve(
+			++calls === 1 ? Response.json({ error_code: 34 }, { status: 429, headers: { 'Retry-After': '600' } }) : Response.json({ nb: 0, limit: 25 }),
+		);
+
+	await clientFor(limited, sleeps).getActiveTorrentCount();
+
+	assert.deepStrictEqual(sleeps, [30_000]);
+});
+
 test('gives up after the configured rate-limit retries', async () => {
 	let calls = 0;
 	const limited: typeof fetch = () => {

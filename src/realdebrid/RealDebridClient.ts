@@ -4,6 +4,12 @@ import { sleep as realSleep, type Sleep } from '@/util/sleep.ts';
 
 const BASE_URL = 'https://api.real-debrid.com/rest/1.0';
 
+/**
+ * Longest wait before retrying a rate-limited request, whatever `Retry-After` asks for. Callers run inside
+ * a queue consumer with a wall-clock limit: an unbounded wait could outlast it and lose the final summary.
+ */
+const MAX_RETRY_DELAY_MS = 30_000;
+
 /** Entries requested per page when walking a whole listing (the API accepts up to 5000). */
 const FULL_LISTING_PAGE_SIZE = 1000;
 
@@ -201,8 +207,8 @@ export class RealDebridClient {
 
 	private backoffDelay(response: Response, attempt: number): number {
 		const retryAfterSeconds = Number(response.headers.get('Retry-After'));
-		if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) return retryAfterSeconds * 1000;
-		return 2000 * 2 ** attempt;
+		const delay = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0 ? retryAfterSeconds * 1000 : 2000 * 2 ** attempt;
+		return Math.min(delay, MAX_RETRY_DELAY_MS);
 	}
 
 	private async toError(response: Response): Promise<RealDebridError> {

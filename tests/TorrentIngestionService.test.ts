@@ -130,3 +130,57 @@ test('keeps going when one file fails and leaves no orphan torrent behind', asyn
 	);
 	assert.deepStrictEqual([...api.torrents.keys()], ['T1', 'T3']);
 });
+
+test('stops a per-file ingestion when its time budget runs out and reports what was left', async () => {
+	const api = new FakeRealDebrid();
+	api.filesOfNextTorrents = [torrentFile(1, '/A.nsp'), torrentFile(2, '/B.nsp'), torrentFile(3, '/C.nsp'), torrentFile(4, '/D.nsp')];
+	let clock = 0;
+	const client = new RealDebridClient({ token: 't', fetch: api.fetch, minIntervalMs: 0, sleep: noSleep });
+	const service = new TorrentIngestionService(client, { sleep: noSleep, now: () => clock, timeBudgetMs: 10 * 60_000 });
+
+	const result = await service.ingest(MAGNET, (event) => {
+		// Each file added costs six minutes, so the budget is spent after the second one.
+		if (event.type === 'file-added') clock += 6 * 60_000;
+		return Promise.resolve();
+	});
+
+	if (result.strategy !== 'individual') throw new Error('expected the per-file strategy');
+	assert.deepStrictEqual(
+		result.added.map((file) => file.path),
+		['/A.nsp', '/B.nsp'],
+	);
+	assert.deepStrictEqual(
+		result.skipped.map((file) => file.path),
+		['/C.nsp', '/D.nsp'],
+	);
+	assert.deepStrictEqual([...api.torrents.keys()], ['T1', 'T2']);
+});
+
+test('stops waiting for a slow copy when the budget runs out, without leaving it behind', async () => {
+	const api = new FakeRealDebrid();
+	api.filesOfNextTorrents = [torrentFile(1, '/A.nsp'), torrentFile(2, '/B.nsp')];
+	let clock = 0;
+	const client = new RealDebridClient({ token: 't', fetch: api.fetch, minIntervalMs: 0, sleep: noSleep });
+	const service = new TorrentIngestionService(client, {
+		now: () => clock,
+		timeBudgetMs: 60_000,
+		// Every poll of the stuck copy costs 25 seconds: the budget, not the 30 attempts, must end the wait.
+		sleep: () => {
+			clock += 25_000;
+			return Promise.resolve();
+		},
+	});
+
+	const result = await service.ingest(MAGNET, (event) => {
+		if (event.type === 'file-added') api.conversionPolls = 99;
+		return Promise.resolve();
+	});
+
+	if (result.strategy !== 'individual') throw new Error('expected the per-file strategy');
+	assert.deepStrictEqual(
+		result.failed.map(({ file }) => file.path),
+		['/B.nsp'],
+	);
+	assert.deepStrictEqual([...api.torrents.keys()], ['T1']);
+	assert.isBelow(api.requestsTo('GET', '/torrents/info/T2').length, 6);
+});

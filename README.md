@@ -177,8 +177,8 @@ feito pela linha de comando, com `npm run webhook`.
 - `static/` é publicado como static assets (ex.: `/robots.txt`)
 - No plano gratuito do Workers cada execução faz no máximo 50 subrequests: adicionar um pacote com mais de ~10 ROMs ou rodar `/clean_nsw` numa biblioteca
   com mais de ~40 torrents excede esse limite e é interrompido no meio. O plano pago (10.000 por execução) comporta todos os comandos
-- `/clean_by` e `/clean_nsw` param após 12 minutos e informam o que já foi feito; basta rodar de novo para continuar. Um pacote de ROMs muito grande
-  (centenas de arquivos) ainda pode ser cortado pelo limite de 15 minutos da fila, sem resumo final
+- `/clean_by` e `/clean_nsw` param após 12 minutos e informam o que já foi feito; basta rodar de novo para continuar. A adição de um pacote de ROMs
+  também para aos 12 minutos e lista os arquivos que não foram processados
 - Os updates são processados um por vez, porque o limite de requisições do Real-Debrid é controlado por execução
 - Cada update é processado no máximo uma vez: a mensagem da fila é confirmada antes do processamento, porque repetir adicionaria os torrents de novo
 - Push na `main` executa a verificação e o deploy pelo GitHub Actions, usando os secrets `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID`

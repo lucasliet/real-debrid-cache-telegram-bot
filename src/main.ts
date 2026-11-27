@@ -12,15 +12,17 @@ async function startLocalBot(): Promise<void> {
 	const config = loadConfig(process.env);
 	const bot = await createBot(config);
 
-	const shutdown = async () => {
-		await bot.stop();
-		await registerWebhook(config);
-		process.exit();
-	};
-	process.once('SIGINT', shutdown);
-	process.once('SIGTERM', shutdown);
+	const stop = () => void bot.stop();
+	process.once('SIGINT', stop);
+	process.once('SIGTERM', stop);
 
-	await bot.start({ onStart: (botInfo) => console.log(`[BOT] @${botInfo.username} running in long-polling mode`) });
+	try {
+		// Resolves when the bot is stopped; rejects when polling fails for good (e.g. another instance took over).
+		await bot.start({ onStart: (botInfo) => console.log(`[BOT] @${botInfo.username} running in long-polling mode`) });
+	} finally {
+		// Long polling removed the webhook; put it back however the run ended, or production stops receiving updates.
+		await registerWebhook(config);
+	}
 }
 
 await startLocalBot();

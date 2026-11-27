@@ -257,6 +257,28 @@ test('accepts commands addressed to the bot by name', async () => {
 	assert.include(bot.texts()[0], 'Instruções de uso');
 });
 
+test('keeps every message of a dense listing within the entity limit', async () => {
+	const bot = await startBot();
+	for (let index = 0; index < 50; index++)
+		bot.realDebrid.seedTorrent({ id: `ID${index}`, filename: `T${index}`, status: 'downloading', progress: 5, speed: 1024, seeders: 3 });
+
+	await bot.sendText('/incomplete');
+
+	assert.isAbove(bot.texts().length, 4);
+	assert.strictEqual(bot.texts().join('').split('%2Fdelete_torrent').length - 1, 50);
+});
+
+test('answers a very long text that matches nothing without echoing all of it', async () => {
+	const bot = await startBot();
+	bot.realDebrid.seedTorrent({ id: 'A', filename: 'Zelda' });
+
+	await bot.sendText('palavra '.repeat(511));
+
+	assert.strictEqual(bot.texts().length, 1);
+	assert.match(bot.texts()[0], /^❌ Nenhum resultado para "palavra .*…"\.$/);
+	assert.isBelow(bot.texts()[0].length, 200);
+});
+
 test('deletes only torrents that contain Switch ROMs', async () => {
 	const bot = await startBot();
 	bot.realDebrid.seedTorrent({ id: 'A', filename: 'Game', files: [torrentFile(1, '/readme.txt'), torrentFile(2, '/Game.XCZ')] });

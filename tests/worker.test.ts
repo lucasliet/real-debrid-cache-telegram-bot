@@ -1,5 +1,6 @@
 import type { Update } from 'grammy/types';
 import { assert, test } from 'vitest';
+import { processQueuedUpdate } from '@/queue.ts';
 import { deriveWebhookSecret, WEBHOOK_SECRET_HEADER } from '@/telegram/webhookSecret.ts';
 import worker from '@/worker.ts';
 
@@ -44,4 +45,25 @@ test('the worker answers 500 instead of crashing when a secret is missing', asyn
 	const response = await fetch(new Request('https://bot.example/webhook', { method: 'POST', body: '{}' }));
 
 	assert.strictEqual(response.status, 500);
+});
+
+function queued(update: Update) {
+	const log: string[] = [];
+	return { log, message: { body: update, attempts: 1, ack: () => void log.push('ack') } };
+}
+
+test('acknowledges a queued update before working on it, so a cut-off run is never redelivered', async () => {
+	const { log, message } = queued({ update_id: 5 });
+
+	await processQueuedUpdate({ handleUpdate: () => Promise.resolve(void log.push('handled')) }, message);
+
+	assert.deepStrictEqual(log, ['ack', 'handled']);
+});
+
+test('swallows a failing update instead of letting the queue retry it', async () => {
+	const { log, message } = queued({ update_id: 6 });
+
+	await processQueuedUpdate({ handleUpdate: () => Promise.reject(new Error('boom')) }, message);
+
+	assert.deepStrictEqual(log, ['ack']);
 });

@@ -1,6 +1,6 @@
 import { assert, test } from 'vitest';
 import { type DecisionModelRunner, LibrarySearchAssistant, MAX_CANDIDATES } from '@/ai/LibrarySearchAssistant.ts';
-import { ConfigurationError, loadConfig } from '@/config/environment.ts';
+import { loadConfig } from '@/config/environment.ts';
 import { startBot } from './support/botHarness.ts';
 import { rejects } from './support/rejects.ts';
 
@@ -26,7 +26,7 @@ function fakeDecisionModel(judge: (entry: string, state: string) => number) {
 			calls.push(call);
 			const answers = Object.fromEntries(
 				Object.entries(call.inputs.questions).map(([id, question]) => {
-					const noul = judge(question.instructions.replace('Does the request refer to this entry? ', ''), call.inputs.state);
+					const noul = judge(question.instructions, call.inputs.state);
 					return [id, { type: 'noul', noul, confidence: noul }];
 				}),
 			);
@@ -48,9 +48,10 @@ test('asks one yes/no question per entry, following the decision model API', asy
 	assert.strictEqual(calls[0].model, '@cf/cloudflare/clef');
 	assert.strictEqual(calls[0].inputs.model, 'clef');
 	assert.include(calls[0].inputs.state, 'Request: filme do nolan');
+	assert.include(calls[0].inputs.state, 'answer whether the request refers to that entry');
 	assert.deepStrictEqual(calls[0].inputs.questions, {
-		e0: { type: 'noul', instructions: 'Does the request refer to this entry? Barbie.2023' },
-		e1: { type: 'noul', instructions: 'Does the request refer to this entry? Oppenheimer.2023 1080p' },
+		e0: { type: 'noul', instructions: 'Barbie.2023' },
+		e1: { type: 'noul', instructions: 'Oppenheimer.2023 1080p' },
 	});
 });
 
@@ -177,13 +178,30 @@ test('works without an AI binding', async () => {
 	assert.deepStrictEqual(bot.texts(), ['❌ Nenhum resultado para "duna".']);
 });
 
+test('never sends half an emoji when shortening a name', async () => {
+	const { ai, calls } = fakeDecisionModel(() => 0);
+	await assistantFor(ai).suggest('x', [`${'a'.repeat(79)}🎮 tail`]);
+
+	const [instructions] = Object.values(calls[0].inputs.questions).map((question) => question.instructions);
+	assert.strictEqual(instructions, `${'a'.repeat(79)}🎮`);
+	assert.doesNotThrow(() => encodeURIComponent(instructions), 'a lone surrogate would make this throw');
+});
+
 test('reads the model and the threshold from the configuration', () => {
 	const required = { BOT_TOKEN: 'b', RD_TOKEN: 'r', ALLOWED_USER_ID: '42' };
 
 	assert.deepStrictEqual(loadConfig(required).aiSearch, { model: '@cf/cloudflare/clef', minProbability: 0.5 });
-	assert.deepStrictEqual(loadConfig({ ...required, AI_SEARCH_MODEL: '@cf/cloudflare/clef-flash', AI_SEARCH_MIN_PROBABILITY: '0.7' }).aiSearch, {
+	assert.deepStrictEqual(loadConfig({ ...required, AI_SEARCH_MODEL: '@cf/cloudflare/clef-flash', AI_SEARCH_MIN_PROBABILITY: '0,7' }).aiSearch, {
 		model: '@cf/cloudflare/clef-flash',
 		minProbability: 0.7,
 	});
-	assert.throws(() => loadConfig({ ...required, AI_SEARCH_MIN_PROBABILITY: '70' }), ConfigurationError);
+});
+
+test('falls back to the defaults, without failing, when the optional AI settings are invalid', () => {
+	const required = { BOT_TOKEN: 'b', RD_TOKEN: 'r', ALLOWED_USER_ID: '42' };
+
+	for (const invalid of ['70', '0', 'abc']) {
+		assert.strictEqual(loadConfig({ ...required, AI_SEARCH_MIN_PROBABILITY: invalid }).aiSearch.minProbability, 0.5);
+	}
+	assert.strictEqual(loadConfig({ ...required, AI_SEARCH_MODEL: '@cf/meta/llama-3.3-70b-instruct-fp8-fast' }).aiSearch.model, '@cf/cloudflare/clef');
 });

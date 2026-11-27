@@ -6,16 +6,11 @@ import { deriveWebhookSecret, isValidWebhookSecret, WEBHOOK_SECRET_HEADER } from
 import { TEST_CONFIG } from './support/botHarness.ts';
 
 function setup(enqueueUpdate: (update: Update) => Promise<void> = () => Promise.resolve()) {
-	const registered: string[] = [];
 	const app = createWebhookApp({
 		enqueueUpdate,
 		loadConfig: () => TEST_CONFIG,
-		registerWebhook: (config) => {
-			registered.push(config.webhookUrl);
-			return Promise.resolve();
-		},
 	});
-	return { app, registered };
+	return { app };
 }
 
 async function delivery(body: string, secret?: string): Promise<Request> {
@@ -62,12 +57,16 @@ test('answers 500 when the update cannot be enqueued, so Telegram redelivers it'
 	assert.deepStrictEqual(response.status, 500);
 });
 
-test('registers the webhook on GET /', async () => {
-	const { app, registered } = setup();
+test('GET / is a public liveness check that needs no configuration and touches nothing', async () => {
+	const app = createWebhookApp({
+		enqueueUpdate: () => Promise.reject(new Error('must not be called')),
+		loadConfig: () => {
+			throw new ConfigurationError('must not be read');
+		},
+	});
 	const response = await app.fetch(new Request('https://bot.example/'));
 
-	assert.deepStrictEqual(response.status, 200);
-	assert.deepStrictEqual(registered, ['https://bot.example/webhook']);
+	assert.deepStrictEqual([response.status, await response.text()], [200, 'Real-Debrid Cache Bot funcionando!']);
 });
 
 test('does not leak internal error details', async () => {
@@ -77,7 +76,7 @@ test('does not leak internal error details', async () => {
 			throw new ConfigurationError('Missing required environment variable BOT_TOKEN');
 		},
 	});
-	const response = await app.fetch(new Request('https://bot.example/'));
+	const response = await app.fetch(new Request('https://bot.example/webhook', { method: 'POST', body: '{}' }));
 
 	assert.deepStrictEqual(response.status, 500);
 	assert.deepStrictEqual(await response.json(), { ok: false, error: 'internal error' });

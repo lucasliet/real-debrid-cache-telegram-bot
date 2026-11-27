@@ -91,6 +91,7 @@ export function accountSummary(user: User, activeTorrents: ActiveTorrentCount): 
  */
 export function bulkDeleteSummary(result: BulkDeleteResult, subject: string, describeError: (error: unknown) => string): string {
 	const lines = [`✅ ${result.deleted.length} torrent(s) ${escapeHtml(subject)} deletado(s).`];
+	if (result.interrupted) lines.push('⏱️ Interrompido para não exceder o tempo de execução: rode o comando de novo para continuar.');
 	if (result.failed.length > 0) {
 		lines.push('', '⚠️ Falhas:');
 		lines.push(

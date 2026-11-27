@@ -1,7 +1,6 @@
 import type { Update } from 'grammy/types';
 import { Hono } from 'hono';
 import type { AppConfig } from '@/config/environment.ts';
-import { registerWebhook } from '@/telegram/webhook.ts';
 import { deriveWebhookSecret, isValidWebhookSecret, WEBHOOK_SECRET_HEADER } from '@/telegram/webhookSecret.ts';
 
 export interface WebhookAppOptions {
@@ -9,19 +8,18 @@ export interface WebhookAppOptions {
 	enqueueUpdate: (update: Update) => Promise<void>;
 	/** Reads the configuration; called per request so a misconfiguration surfaces as a 500, not a crash at startup. */
 	loadConfig: () => AppConfig;
-	/** Registers the webhook on Telegram; replaceable in tests. */
-	registerWebhook?: typeof registerWebhook;
 }
 
 /**
  * Build the HTTP app that receives Telegram webhook deliveries and hands them over for asynchronous processing.
- * - `GET /` (re)registers the webhook on Telegram, which is idempotent.
+ * - `GET /` is a liveness check. It is public, so it deliberately does not touch Telegram:
+ *   the webhook is registered with `npm run webhook`.
  * - `POST /webhook` rejects requests without the secret header derived from the bot token with 401, since
  *   `from.id` (used by the allowed-user check) is otherwise unauthenticated. A failed enqueue returns 500 so Telegram redelivers.
  * @returns Hono app
  */
 export function createWebhookApp(options: WebhookAppOptions): Hono {
-	const { enqueueUpdate, loadConfig: load, registerWebhook: register = registerWebhook } = options;
+	const { enqueueUpdate, loadConfig: load } = options;
 	const app = new Hono();
 
 	app.use('*', async (c, next) => {
@@ -30,10 +28,7 @@ export function createWebhookApp(options: WebhookAppOptions): Hono {
 		console.log(`[HTTP] ${c.req.method} ${new URL(c.req.url).pathname} ${c.res.status} - ${Date.now() - start}ms`);
 	});
 
-	app.get('/', async (c) => {
-		await register(load());
-		return c.text('Real-Debrid Cache Bot funcionando!');
-	});
+	app.get('/', (c) => c.text('Real-Debrid Cache Bot funcionando!'));
 
 	app.post('/webhook', async (c) => {
 		const expectedSecret = await deriveWebhookSecret(load().botToken);

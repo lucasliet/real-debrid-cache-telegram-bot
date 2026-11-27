@@ -67,6 +67,23 @@ test('keeps a torrent that is still converting, so a slow magnet is not thrown a
 	assert.deepStrictEqual([...api.torrents.keys()], ['T1']);
 });
 
+test('does not claim a discarded extra copy is still in the account', async () => {
+	const { api, service } = setup({ maxPollAttempts: 2 });
+	api.filesOfNextTorrents = [torrentFile(1, '/A.nsp'), torrentFile(2, '/B.nsp')];
+
+	const result = await service.ingest(MAGNET, (event) => {
+		// Only the copies added after the first file get stuck converting.
+		if (event.type === 'file-added') api.conversionPolls = 99;
+		return Promise.resolve();
+	});
+
+	if (result.strategy !== 'individual') throw new Error('expected the per-file strategy');
+	assert.deepStrictEqual([...api.torrents.keys()], ['T1']);
+	const message = (result.failed[0].error as Error).message;
+	assert.include(message, 'reenvie o torrent');
+	assert.notInclude(message, 'continua na sua conta');
+});
+
 test('discards a bundle whose file selection is refused', async () => {
 	const { api, service } = setup();
 	api.filesOfNextTorrents = [torrentFile(1, '/Movie.mkv')];

@@ -46,11 +46,28 @@ function required(env: EnvironmentSource, name: string): string {
 	return value;
 }
 
-function probability(value: string | undefined): number | undefined {
-	if (value === undefined) return undefined;
-	const parsed = Number(value);
-	if (!(parsed > 0 && parsed <= 1)) throw new ConfigurationError('AI_SEARCH_MIN_PROBABILITY must be a number between 0 (exclusive) and 1');
-	return parsed;
+/** Decision models the search assistant can talk to (they share the request and response format). */
+const SUPPORTED_AI_SEARCH_MODELS = /^@cf\/cloudflare\/clef(-[a-z]+)?$/;
+
+/**
+ * Settings of the optional AI search. An invalid value falls back to the default with a warning
+ * instead of failing: a tuning knob of an optional feature must not take the whole bot down.
+ */
+function aiSearchSettings(env: EnvironmentSource): AppConfig['aiSearch'] {
+	let model = optional(env, 'AI_SEARCH_MODEL') ?? DEFAULT_AI_SEARCH_MODEL;
+	if (!SUPPORTED_AI_SEARCH_MODELS.test(model)) {
+		console.warn(`[CONFIG] AI_SEARCH_MODEL "${model}" is not a Clef decision model; using ${DEFAULT_AI_SEARCH_MODEL}`);
+		model = DEFAULT_AI_SEARCH_MODEL;
+	}
+
+	const rawProbability = optional(env, 'AI_SEARCH_MIN_PROBABILITY');
+	let minProbability = rawProbability === undefined ? DEFAULT_AI_SEARCH_MIN_PROBABILITY : Number(rawProbability.replace(',', '.'));
+	if (!(minProbability > 0 && minProbability <= 1)) {
+		console.warn(`[CONFIG] AI_SEARCH_MIN_PROBABILITY "${rawProbability}" is not between 0 and 1; using ${DEFAULT_AI_SEARCH_MIN_PROBABILITY}`);
+		minProbability = DEFAULT_AI_SEARCH_MIN_PROBABILITY;
+	}
+
+	return { model, minProbability };
 }
 
 /**
@@ -74,9 +91,6 @@ export function loadConfig(env: EnvironmentSource): AppConfig {
 			updateUrl: optional(env, 'TINFOIL_UPDATE_URL') ?? DEFAULT_TINFOIL_UPDATE_URL,
 			credentials: optional(env, 'TINFOIL_USER_PASS'),
 		},
-		aiSearch: {
-			model: optional(env, 'AI_SEARCH_MODEL') ?? DEFAULT_AI_SEARCH_MODEL,
-			minProbability: probability(optional(env, 'AI_SEARCH_MIN_PROBABILITY')) ?? DEFAULT_AI_SEARCH_MIN_PROBABILITY,
-		},
+		aiSearch: aiSearchSettings(env),
 	};
 }

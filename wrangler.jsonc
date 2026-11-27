@@ -3,18 +3,17 @@
 	"name": "real-debrid-cache-bot",
 	"main": "src/worker.ts",
 	"compatibility_date": "2026-09-01",
-	// the webhook only enqueues updates; the consumer runs the bot because work left after an HTTP response is cancelled
+	// the webhook only enqueues updates; the consumer runs the bot because work left after an HTTP response is cancelled.
+	// one consumer at a time: the Real-Debrid rate limit is tracked per isolate, so concurrent consumers would exceed it together
 	"queues": {
 		"producers": [{ "binding": "UPDATES_QUEUE", "queue": "real-debrid-cache-bot-updates" }],
-		"consumers": [{ "queue": "real-debrid-cache-bot-updates", "max_batch_size": 1, "max_batch_timeout": 0, "max_retries": 2 }]
+		"consumers": [{ "queue": "real-debrid-cache-bot-updates", "max_batch_size": 1, "max_batch_timeout": 0, "max_retries": 2, "max_concurrency": 1 }]
 	},
 	// Workers AI suggests library entries when a literal search finds nothing
 	"ai": { "binding": "AI", "remote": true },
 	"vars": {
 		"SERVER_URL": "https://real-debrid-cache-bot.lucasliet.workers.dev/webhook"
 	},
-	// declared so `wrangler types` knows them and deploys fail fast when one is missing
-	"secrets": { "required": ["BOT_TOKEN", "RD_TOKEN", "ALLOWED_USER_ID"] },
 	"assets": {
 		"directory": "./static"
 	},

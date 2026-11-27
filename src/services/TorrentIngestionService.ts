@@ -113,6 +113,9 @@ export class TorrentIngestionService {
 		} catch (error) {
 			// Unlike the first copy, an extra copy is always disposable: the file is simply reported as failed.
 			await this.discard(torrentId);
+			if (error instanceof PendingTorrentError && !existingTorrentId) {
+				throw new UserFacingError('o Real-Debrid não resolveu os arquivos desta cópia a tempo; reenvie o torrent para tentar este arquivo de novo');
+			}
 			throw error;
 		}
 	}

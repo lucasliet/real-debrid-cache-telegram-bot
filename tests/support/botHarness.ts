@@ -113,6 +113,9 @@ function assertDeliverable(method: string, payload: Record<string, unknown>): vo
 		else if (open.pop() !== tag) throw new Error(`Bad Request: can't parse entities: unexpected </${tag}>`);
 	}
 	if (open.length > 0) throw new Error(`Bad Request: can't parse entities: unclosed <${open[0]}>`);
+	// The real API does not reject these: it silently drops the formatting and links past the 100th entity.
+	const entities = text.match(/<(b|code|a)[ >]/g)?.length ?? 0;
+	if (entities > 100) throw new Error(`Message carries ${entities} entities; Telegram keeps only the first 100`);
 
 	const withoutMarkup = text.replace(/<\/?[a-z]+(?: href="[^"<>]*")?>/g, '').replace(/&(amp|lt|gt|quot);/g, '');
 	if (/[<&]/.test(withoutMarkup)) throw new Error("Bad Request: can't parse entities: unescaped character");

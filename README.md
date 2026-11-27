@@ -38,7 +38,7 @@ por arquivo**, cada cópia com um único arquivo selecionado. Assim o Real-Debri
 | `/clean_nsw` | Remove todos os torrents de jogos de Nintendo Switch |
 | `/update_tinfoil` | Atualiza o índice da loja Tinfoil |
 
-Qualquer outro texto é tratado como busca. O menu de comandos do Telegram é publicado junto com o registro do webhook, a partir da mesma lista
+Qualquer outro texto é tratado como busca. O menu de comandos do Telegram é publicado junto com o registro do webhook (`npm run webhook`), a partir da mesma lista
 (`src/bot/commands.ts`) que gera o `/ajuda`.
 
 ## Arquitetura
@@ -87,7 +87,7 @@ limiar, no máximo 10, do mais provável para o menos.
 - Não há texto livre para interpretar: vários itens podem corresponder ao mesmo tempo e "nada corresponde" é simplesmente nenhuma probabilidade acima do limiar
 - A IA nunca participa de operações destrutivas: `/clean_by` e `/clean_nsw` usam apenas correspondência literal
 - Os nomes dos arquivos são enviados ao Workers AI, na sua própria conta Cloudflare
-- O limiar padrão é 0,5 (`AI_SEARCH_MIN_PROBABILITY`); cada busca registra no log quantos itens foram sugeridos e a maior probabilidade, para calibrá-lo
+- O limiar padrão é `0.5` (`AI_SEARCH_MIN_PROBABILITY`); cada busca registra no log quantos itens foram sugeridos e a maior probabilidade, para calibrá-lo
 - O modelo é configurável por `AI_SEARCH_MODEL` entre os da família Clef (`@cf/cloudflare/clef`, `@cf/cloudflare/clef-flash`); o uso consome a cota diária
   de 10.000 neurons do Workers AI, compartilhada por toda a conta
 - Consultas muito curtas ou que são só um link não são enviadas ao modelo
@@ -137,7 +137,7 @@ npm run verify     # lint, tipos, testes e bundle — o mesmo que o CI executa
 npm run dev:worker # roda o Worker no workerd local (wrangler dev), lendo os secrets de .dev.vars
 ```
 
-Rodar localmente remove o webhook de produção enquanto o processo está ativo; ao encerrar (Ctrl+C) ele é registrado de novo.
+Rodar localmente remove o webhook de produção enquanto o processo está ativo; ao encerrar (Ctrl+C, ou se o polling falhar) ele é registrado de novo.
 
 Para instalar o hook de pre-commit (formatação e correções de lint com o Biome):
 
@@ -165,15 +165,23 @@ npx wrangler secret put BOT_TOKEN   # repita para RD_TOKEN, ALLOWED_USER_ID e TI
 npm run deploy
 ```
 
-O deploy falha se `BOT_TOKEN`, `RD_TOKEN` ou `ALLOWED_USER_ID` não estiverem cadastrados como secrets.
+Sem `BOT_TOKEN`, `RD_TOKEN` ou `ALLOWED_USER_ID` cadastrados como secrets o Worker responde 500 ao webhook.
 
-Depois do primeiro deploy, acesse `https://real-debrid-cache-bot.<sua-conta>.workers.dev/` uma vez: o `GET /` registra o webhook e o menu de comandos no
-Telegram (a operação é idempotente).
+Depois do primeiro deploy, registre o webhook e o menu de comandos no Telegram (use o `.env` com `BOT_TOKEN` e o `SERVER_URL` do seu Worker):
+
+```bash
+npm run webhook
+```
+
+O `GET /` do Worker é só uma verificação de disponibilidade e, por ser público, não aciona o Telegram.
 
 - `SERVER_URL` vem de `vars` em `wrangler.jsonc`; ajuste para o domínio do seu Worker
 - `static/` é publicado como static assets (ex.: `/robots.txt`)
 - No plano gratuito do Workers cada execução faz no máximo 50 subrequests: adicionar um pacote com mais de ~10 ROMs ou rodar `/clean_nsw` numa biblioteca
   com mais de ~40 torrents excede esse limite e é interrompido no meio. O plano pago (10.000 por execução) comporta todos os comandos
+- `/clean_by` e `/clean_nsw` param após 12 minutos e informam o que já foi feito; basta rodar de novo para continuar. Um pacote de ROMs muito grande
+  (centenas de arquivos) ainda pode ser cortado pelo limite de 15 minutos da fila, sem resumo final
+- Os updates são processados um por vez, porque o limite de requisições do Real-Debrid é controlado por execução
 - Cada update é processado no máximo uma vez: a mensagem da fila é confirmada antes do processamento, porque repetir adicionaria os torrents de novo
 - Push na `main` executa a verificação e o deploy pelo GitHub Actions, usando os secrets `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID`
 

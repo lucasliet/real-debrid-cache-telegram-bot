@@ -20,6 +20,7 @@ const GUIDANCE = [
 	'Entries are release names: words separated by dots or underscores, followed by year, resolution, codec and release group.',
 	'The request may be in any language and may describe the content instead of naming it',
 	'(a translated or abbreviated title, a franchise, a director, a typo).',
+	'Each question names one library entry: answer whether the request refers to that entry.',
 ].join(' ');
 
 export interface LibrarySearchAssistantOptions {
@@ -34,7 +35,8 @@ export interface LibrarySearchAssistantOptions {
  * such as "aquele filme do Nolan sobre a bomba" for `Oppenheimer.2023.2160p.UHD.BluRay.x265`.
  *
  * A decision model answers typed questions with probabilities instead of generating text, so each candidate
- * becomes one yes/no question: "does the request refer to this entry?". There is no free-form output to parse,
+ * becomes one yes/no question. The question itself is stated once, in the state; each question carries only
+ * the entry name, so the fixed wording is not paid for 192 times. There is no free-form output to parse,
  * several entries can match at once, and "nothing matches" is simply every probability below the threshold.
  */
 export class LibrarySearchAssistant {
@@ -91,9 +93,7 @@ export class LibrarySearchAssistant {
 	 * @returns Probability that the request refers to each entry, by position
 	 */
 	private async evaluate(query: string, names: readonly string[], offset: number): Promise<Map<number, number>> {
-		const questions = Object.fromEntries(
-			names.map((name, index) => [questionId(offset + index), { type: 'noul', instructions: `Does the request refer to this entry? ${describe(name)}` }]),
-		);
+		const questions = Object.fromEntries(names.map((name, index) => [questionId(offset + index), { type: 'noul', instructions: describe(name) }]));
 
 		const output = await this.ai.run(this.options.model, {
 			model: this.modelSelector,
@@ -118,5 +118,6 @@ function questionId(position: number): string {
 }
 
 function describe(name: string): string {
-	return name.replace(/\s+/g, ' ').slice(0, MAX_NAME_LENGTH);
+	// By code point: slicing UTF-16 units could leave half an emoji, which is not valid text to send.
+	return Array.from(name.replace(/\s+/g, ' ')).slice(0, MAX_NAME_LENGTH).join('');
 }

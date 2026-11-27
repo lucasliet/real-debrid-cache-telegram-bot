@@ -45,7 +45,7 @@ export function buildDependencies(config: AppConfig, options: BotOptions = {}): 
 	return {
 		config,
 		realDebrid,
-		library: new LibraryService(realDebrid, assistant),
+		library: new LibraryService(realDebrid, { assistant }),
 		ingestion: new TorrentIngestionService(realDebrid, { sleep }),
 		tinfoil: new TinfoilService({ ...config.tinfoil, fetch: fetchImpl }),
 		fetch: fetchImpl,
@@ -63,8 +63,9 @@ export function buildDependencies(config: AppConfig, options: BotOptions = {}): 
 export async function createBot(config: AppConfig, options: BotOptions = {}): Promise<Bot<Context>> {
 	const dependencies = buildDependencies(config, options);
 	const bot = new Bot<Context>(config.botToken, { botInfo: options.botInfo });
-	// Honour Telegram's flood control (429 retry_after) instead of losing the message.
-	bot.api.config.use(autoRetry({ maxRetryAttempts: 2, maxDelaySeconds: 30 }));
+	// Honour Telegram's flood control (429 retry_after) instead of losing the message. Network errors are not
+	// retried: the plugin would retry them without bound, stalling the work a progress edit only reports on.
+	bot.api.config.use(autoRetry({ maxRetryAttempts: 2, maxDelaySeconds: 30, rethrowHttpErrors: true }));
 	if (!options.botInfo) await bot.init();
 
 	bot.use(errorBoundary, allowOnly(config.allowedUserId));

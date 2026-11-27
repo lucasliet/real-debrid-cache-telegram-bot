@@ -24,16 +24,23 @@ export function packBlocks(blocks: readonly string[], limit: number = TELEGRAM_M
 
 	for (const block of blocks.flatMap((block) => splitOversized(block, limit))) {
 		const candidate = current ? current + BLOCK_SEPARATOR + block : block;
-		if (candidate.length <= limit) {
+		if (candidate.length <= limit && countEntities(candidate) <= MAX_ENTITIES_PER_MESSAGE) {
 			current = candidate;
 			continue;
 		}
-		messages.push(current);
+		if (current) messages.push(current);
 		current = block;
 	}
 
 	if (current) messages.push(current);
 	return messages;
+}
+
+/** Telegram keeps only the first 100 formatting entities of a message; anything beyond loses its formatting and links. */
+const MAX_ENTITIES_PER_MESSAGE = 100;
+
+function countEntities(html: string): number {
+	return html.match(/<(b|code|a)[ >]/g)?.length ?? 0;
 }
 
 /** Split an oversized block between lines, so markup is not cut; only a single line longer than the limit is sliced. */

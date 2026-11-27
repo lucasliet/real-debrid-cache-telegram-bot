@@ -13,6 +13,8 @@ export interface SearchResult {
 }
 
 export interface BulkDeleteResult {
+	/** True when the time budget ran out before every torrent was handled. */
+	interrupted: boolean;
 	readonly deleted: Torrent[];
 	readonly failed: { readonly torrent: Torrent; readonly error: unknown }[];
 }
@@ -46,16 +48,31 @@ function isWorthAskingAssistant(query: string): boolean {
 	return normalizeForSearch(query).length >= 4 && !/^\w+:\/\//.test(query.trim());
 }
 
+export interface LibraryServiceOptions {
+	/** Optional AI fallback for searches without a literal match. */
+	assistant?: LibrarySearchAssistant;
+	now?: () => number;
+	/**
+	 * How long a bulk operation may run before it stops and reports what it did. A queue consumer is cut off
+	 * after 15 minutes of wall time, and the update is not redelivered, so the summary must be sent before that.
+	 */
+	bulkTimeBudgetMs?: number;
+}
+
 /** Queries and bulk maintenance over the torrents and downloads already in the Real-Debrid account. */
 export class LibraryService {
-	/**
-	 * @param realDebrid - API client
-	 * @param assistant - Optional AI fallback for searches without a literal match
-	 */
+	private readonly assistant?: LibrarySearchAssistant;
+	private readonly now: () => number;
+	private readonly bulkTimeBudgetMs: number;
+
 	constructor(
 		private readonly realDebrid: RealDebridClient,
-		private readonly assistant?: LibrarySearchAssistant,
-	) {}
+		options: LibraryServiceOptions = {},
+	) {
+		this.assistant = options.assistant;
+		this.now = options.now ?? Date.now;
+		this.bulkTimeBudgetMs = options.bulkTimeBudgetMs ?? 12 * 60 * 1000;
+	}
 
 	/**
 	 * Find torrents and downloads whose name contains the query. When nothing matches and an assistant
@@ -119,8 +136,13 @@ export class LibraryService {
 
 	/** Delete every torrent that contains at least one Nintendo Switch ROM. */
 	async deleteSwitchTorrents(): Promise<BulkDeleteResult> {
-		const result: BulkDeleteResult = { deleted: [], failed: [] };
+		const result: BulkDeleteResult = { interrupted: false, deleted: [], failed: [] };
+		const deadline = this.now() + this.bulkTimeBudgetMs;
 		for (const torrent of await this.realDebrid.listAllTorrents()) {
+			if (this.now() >= deadline) {
+				result.interrupted = true;
+				break;
+			}
 			try {
 				const { files } = await this.realDebrid.getTorrentInfo(torrent.id);
 				if (!files?.some((file) => SWITCH_ROM_EXTENSIONS.has(fileExtension(file.path)))) continue;
@@ -135,8 +157,13 @@ export class LibraryService {
 	}
 
 	private async deleteAll(torrents: readonly Torrent[]): Promise<BulkDeleteResult> {
-		const result: BulkDeleteResult = { deleted: [], failed: [] };
+		const result: BulkDeleteResult = { interrupted: false, deleted: [], failed: [] };
+		const deadline = this.now() + this.bulkTimeBudgetMs;
 		for (const torrent of torrents) {
+			if (this.now() >= deadline) {
+				result.interrupted = true;
+				break;
+			}
 			try {
 				await this.realDebrid.deleteTorrent(torrent.id);
 				result.deleted.push(torrent);

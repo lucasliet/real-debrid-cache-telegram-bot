@@ -15,7 +15,8 @@
 		"lint": "biome check",
 		"typecheck": "wrangler types && tsc --noEmit",
 		"test": "vitest run",
-		"verify": "npm run lint && npm run typecheck && npm test && npm run build"
+		"verify": "npm run lint && npm run typecheck && npm test && npm run build",
+		"webhook": "tsx --env-file=.env scripts/register-webhook.ts"
 	},
 	"dependencies": {
 		"@grammyjs/auto-retry": "^2.0.2",

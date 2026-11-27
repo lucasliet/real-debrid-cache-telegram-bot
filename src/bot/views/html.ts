@@ -45,9 +45,10 @@ export function formatBytes(bytes: number): string {
 /** Failures listed individually in a summary; the rest is only counted, so the summary always fits one message. */
 const MAX_LISTED_FAILURES = 15;
 
-/** Shorten a name for a summary line. */
+/** Shorten a name for a summary line, by code point so an emoji is never cut in half. */
 export function truncate(text: string, maxLength = 80): string {
-	return text.length <= maxLength ? text : `${text.slice(0, maxLength - 1)}…`;
+	const characters = Array.from(text);
+	return characters.length <= maxLength ? text : `${characters.slice(0, maxLength - 1).join('')}…`;
 }
 
 /**

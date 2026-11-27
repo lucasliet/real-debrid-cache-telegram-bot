@@ -2,9 +2,12 @@ import { Composer, type Context } from 'grammy';
 import type { BotDependencies } from '@/bot/createBot.ts';
 import { describeError, replyBlocks, replyHtml } from '@/bot/messaging.ts';
 import { requireArgument } from '@/bot/middleware.ts';
-import { bold, escapeHtml } from '@/bot/views/html.ts';
+import { bold, escapeHtml, truncate } from '@/bot/views/html.ts';
 import { accountSummary, bulkDeleteSummary, downloadCard, streamBlocks, torrentCard, unrestrictedLinkCard } from '@/bot/views/library.ts';
 import { LISTING_PAGE_SIZE } from '@/config/constants.ts';
+
+/** A pasted text can be as long as a whole message; echoing it in full would not fit the reply. */
+const MAX_ECHOED_QUERY_LENGTH = 100;
 
 /**
  * Header for a listing, telling the user when it was truncated.
@@ -76,7 +79,7 @@ export function libraryHandlers({ realDebrid, library, sleep }: BotDependencies)
 	composer.command('clean_by', async (ctx) => {
 		const query = requireArgument(ctx, '/clean_by zelda');
 		const result = await library.deleteTorrentsByName(query);
-		await replyBlocks(ctx, [bulkDeleteSummary(result, `com "${query}" no nome`, describeError)], sleep);
+		await replyBlocks(ctx, [bulkDeleteSummary(result, `com "${truncate(query, MAX_ECHOED_QUERY_LENGTH)}" no nome`, describeError)], sleep);
 	});
 
 	composer.command('clean_nsw', async (ctx) => {
@@ -96,9 +99,9 @@ export function libraryHandlers({ realDebrid, library, sleep }: BotDependencies)
 export async function replySearch(ctx: Context, query: string, { library, sleep }: BotDependencies): Promise<void> {
 	const { torrents, downloads, suggested } = await library.search(query);
 	if (torrents.length === 0 && downloads.length === 0) {
-		return void (await replyHtml(ctx, `❌ Nenhum resultado para "${escapeHtml(query)}".`));
+		return void (await replyHtml(ctx, `❌ Nenhum resultado para "${escapeHtml(truncate(query, MAX_ECHOED_QUERY_LENGTH))}".`));
 	}
-	if (suggested) await replyHtml(ctx, `🤖 Nenhum nome contém "${escapeHtml(query)}". Estas são sugestões da IA:`);
+	if (suggested) await replyHtml(ctx, `🤖 Nenhum nome contém "${escapeHtml(truncate(query, MAX_ECHOED_QUERY_LENGTH))}". Estas são sugestões da IA:`);
 
 	if (torrents.length > 0) {
 		const shown = torrents.slice(0, LISTING_PAGE_SIZE);

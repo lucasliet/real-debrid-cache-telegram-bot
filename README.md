@@ -38,7 +38,7 @@ por arquivo**, cada cópia com um único arquivo selecionado. Assim o Real-Debri
 | `/clean_nsw` | Remove todos os torrents de jogos de Nintendo Switch |
 | `/update_tinfoil` | Atualiza o índice da loja Tinfoil |
 
-Qualquer outro texto é tratado como busca. O menu de comandos do Telegram é publicado junto com o registro do webhook (`npm run webhook`), a partir da mesma lista
+Qualquer outro texto é tratado como busca. O menu de comandos do Telegram é publicado junto com o registro do webhook, a partir da mesma lista
 (`src/bot/commands.ts`) que gera o `/ajuda`.
 
 ## Arquitetura
@@ -167,13 +167,9 @@ npm run deploy
 
 Sem `BOT_TOKEN`, `RD_TOKEN` ou `ALLOWED_USER_ID` cadastrados como secrets o Worker responde 500 ao webhook.
 
-Depois do primeiro deploy, registre o webhook e o menu de comandos no Telegram (use o `.env` com `BOT_TOKEN` e o `SERVER_URL` do seu Worker):
-
-```bash
-npm run webhook
-```
-
-O `GET /` do Worker é só uma verificação de disponibilidade e, por ser público, não aciona o Telegram.
+Depois do primeiro deploy, acesse `https://real-debrid-cache-bot.<sua-conta>.workers.dev/` uma vez: o `GET /` registra o webhook e o menu de comandos no
+Telegram (a operação é idempotente). É também assim que os updates voltam para o deploy depois de rodar o bot localmente. O mesmo registro pode ser
+feito pela linha de comando, com `npm run webhook`.
 
 - `SERVER_URL` vem de `vars` em `wrangler.jsonc`; ajuste para o domínio do seu Worker
 - `static/` é publicado como static assets (ex.: `/robots.txt`)

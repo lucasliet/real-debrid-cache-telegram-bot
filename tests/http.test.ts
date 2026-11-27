@@ -57,16 +57,21 @@ test('answers 500 when the update cannot be enqueued, so Telegram redelivers it'
 	assert.deepStrictEqual(response.status, 500);
 });
 
-test('GET / is a public liveness check that needs no configuration and touches nothing', async () => {
+test('registers the webhook on GET /', async () => {
+	const registered: string[] = [];
 	const app = createWebhookApp({
-		enqueueUpdate: () => Promise.reject(new Error('must not be called')),
-		loadConfig: () => {
-			throw new ConfigurationError('must not be read');
+		enqueueUpdate: () => Promise.resolve(),
+		loadConfig: () => TEST_CONFIG,
+		registerWebhook: (config) => {
+			registered.push(config.webhookUrl);
+			return Promise.resolve();
 		},
 	});
+
 	const response = await app.fetch(new Request('https://bot.example/'));
 
-	assert.deepStrictEqual([response.status, await response.text()], [200, 'Real-Debrid Cache Bot funcionando!']);
+	assert.deepStrictEqual(response.status, 200);
+	assert.deepStrictEqual(registered, ['https://bot.example/webhook']);
 });
 
 test('does not leak internal error details', async () => {

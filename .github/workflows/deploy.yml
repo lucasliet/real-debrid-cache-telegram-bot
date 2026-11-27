@@ -1,4 +1,4 @@
-name: Deploy
+name: CI/CD
 
 on:
   push:
@@ -10,26 +10,35 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    name: Build worker bundle
+  verify:
+    name: Verify (lint, types, tests, bundle)
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: denoland/setup-deno@v2
+      - uses: actions/setup-node@v4
         with:
-          deno-version: v2.x
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint and check formatting
+        run: npm run lint
 
       - name: Check types
-        run: deno check --allow-import worker.ts
+        run: npm run typecheck
+
+      - name: Run tests
+        run: npm test
 
       - name: Bundle worker
-        run: deno task build
+        run: npm run build
 
   deploy:
     name: Deploy to Cloudflare Workers
-    needs: build
+    needs: verify
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     concurrency:
@@ -39,16 +48,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.x
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+
+      - run: npm ci
 
       - name: Deploy worker
-        run: deno task deploy
+        run: npm run deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

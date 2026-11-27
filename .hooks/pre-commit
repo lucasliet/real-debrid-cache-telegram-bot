@@ -1,8 +1,6 @@
 #!/bin/sh
+set -e
 
-# Run deno fmt on the src directory
-echo "Running deno fmt..."
-deno fmt
-
-# Add any files that were formatted
-git add -u
+# Check only what is staged and never touch the index: partial commits stay partial.
+# Run `npm run format` to fix what this reports.
+npx --no-install biome check --staged --no-errors-on-unmatched

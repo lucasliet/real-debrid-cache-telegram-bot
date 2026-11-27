@@ -75,7 +75,9 @@ test('a listing that fits one page has only the entry buttons', async () => {
 
 	assert.include(bot.texts()[0], 'Downloads (1)');
 	assert.notInclude(bot.texts()[0], 'Página');
-	assert.deepStrictEqual(bot.buttons(), ['⬇️ Baixar 1=https://dl.example/D1', '🗑️ Deletar 1=x:rm:d:1:D1']);
+	assert.deepStrictEqual(bot.buttons(), ['⬇️ Baixar=https://dl.example/D1', '🗑️ Deletar=x:rm:d:1:D1'], 'a single entry needs no number');
+	assert.notInclude(bot.texts()[0], '1.');
+	assert.notInclude(bot.texts()[0], 'mesmo número');
 });
 
 test('falls back to the last page when the library shrank since the buttons were drawn', async () => {
@@ -151,11 +153,7 @@ test('searches torrents and downloads by normalized name', async () => {
 	assert.include(torrents, 'Torrents encontrados (1)');
 	assert.include(torrents, 'Zélda');
 	assert.include(downloads, 'legend of zelda ost.flac');
-	assert.deepStrictEqual(bot.buttons(), [
-		'⬇️ Baixar 1=https://dl.example/D1',
-		'🎥 Stream 1=x:sm:sd:1:D1:legend of zelda',
-		'🗑️ Deletar 1=x:rm:sd:1:D1:legend of zelda',
-	]);
+	assert.deepStrictEqual(bot.buttons(), ['⬇️ Baixar=https://dl.example/D1', '🎥 Stream=x:sm:sd:1:D1:legend of zelda', '🗑️ Deletar=x:rm:sd:1:D1:legend of zelda']);
 });
 
 test('tells the user when a search finds nothing', async () => {

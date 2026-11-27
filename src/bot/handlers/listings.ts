@@ -90,7 +90,10 @@ function card(entry: Entry, compact: boolean): string {
 
 /** Numbered cards, with shortened names when the full ones would not fit one message. */
 function numberedCards(header: string, entries: readonly Entry[]): string {
-	const compose = (compact: boolean) => [header, ...entries.map((entry, index) => `${bold(`${index + 1}.`)} ${card(entry, compact)}`)].join('\n\n');
+	// Numbers tie each card to its row of buttons; a single entry needs none.
+	const numbered = entries.length > 1;
+	const compose = (compact: boolean) =>
+		[header, ...entries.map((entry, index) => (numbered ? `${bold(`${index + 1}.`)} ${card(entry, compact)}` : card(entry, compact)))].join('\n\n');
 	const full = compose(false);
 	return full.length <= TELEGRAM_MESSAGE_LIMIT ? full : compose(true);
 }
@@ -101,16 +104,16 @@ function numberedCards(header: string, entries: readonly Entry[]): string {
  */
 function addActionRows(keyboard: InlineKeyboard, entries: readonly Entry[], location: Location): void {
 	for (const [index, entry] of entries.entries()) {
-		const number = index + 1;
+		const number = entries.length > 1 ? ` ${index + 1}` : '';
 		const { id } = entry.item;
 
 		if (entry.type === 'torrent') {
-			if (entry.item.status === 'downloaded') keyboard.text(`⬇️ Baixar ${number}`, entryData('x:dl', location, id));
+			if (entry.item.status === 'downloaded') keyboard.text(`⬇️ Baixar${number}`, entryData('x:dl', location, id));
 		} else {
-			keyboard.url(`⬇️ Baixar ${number}`, entry.item.download);
-			if (entry.item.streamable === 1) keyboard.text(`🎥 Stream ${number}`, entryData('x:sm', location, id));
+			keyboard.url(`⬇️ Baixar${number}`, entry.item.download);
+			if (entry.item.streamable === 1) keyboard.text(`🎥 Stream${number}`, entryData('x:sm', location, id));
 		}
-		keyboard.text(`🗑️ Deletar ${number}`, entryData('x:rm', location, id)).row();
+		keyboard.text(`🗑️ Deletar${number}`, entryData('x:rm', location, id)).row();
 	}
 }
 
@@ -136,7 +139,7 @@ async function listingScreen(dependencies: BotDependencies, requested: Location)
 	const header = [bold(`${LISTINGS[kind].title} (${total})`)];
 	if (totalPages > 1)
 		header.push(pageable ? `Página ${page} de ${totalPages}` : `Mostrando os ${items.length} primeiros: a busca é longa demais para paginar, refine o termo.`);
-	header.push('Os botões abaixo agem sobre o item de mesmo número.');
+	if (items.length > 1) header.push('Os botões abaixo agem sobre o item de mesmo número.');
 
 	const keyboard = new InlineKeyboard();
 	addActionRows(keyboard, items, anchor);
@@ -208,7 +211,8 @@ export async function replyEntries(ctx: Context, title: string, type: Entry['typ
 	const keyboard = new InlineKeyboard();
 	// These entries come from no reproducible listing, so "back" leads to the plain listing of their type.
 	addActionRows(keyboard, entries, { kind: type === 'torrent' ? 't' : 'd', page: 1, query: '' });
-	const header = `${bold(`${title} (${entries.length})`)}\nOs botões abaixo agem sobre o item de mesmo número.`;
+	const header =
+		entries.length > 1 ? `${bold(`${title} (${entries.length})`)}\nOs botões abaixo agem sobre o item de mesmo número.` : bold(`${title} (${entries.length})`);
 	await ctx.reply(numberedCards(header, entries), { ...HTML_OPTIONS, reply_markup: keyboard });
 }
 

@@ -62,6 +62,14 @@ test('walks every page when listing all torrents', async () => {
 	);
 });
 
+test('keeps walking full pages when the API does not report a total', async () => {
+	const api = new FakeRealDebrid();
+	api.reportsTotal = false;
+	for (let index = 0; index < 2300; index++) api.seedTorrent({ id: `S${index}`, filename: `seed ${index}` });
+
+	assert.strictEqual((await clientFor(api.fetch).listAllTorrents()).length, 2300);
+});
+
 test('maps API failures to RealDebridError with a translated message', async () => {
 	const error = await rejects(() => clientFor(new FakeRealDebrid().fetch).deleteTorrent('missing'), RealDebridError);
 	assert.deepStrictEqual([error.status, error.code, error.message], [404, 7, 'Recurso não encontrado']);

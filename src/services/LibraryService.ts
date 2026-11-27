@@ -31,9 +31,19 @@ export function normalizeForSearch(text: string): string {
 		.trim();
 }
 
+/** Shortest normalized term accepted for a bulk deletion; anything shorter matches far more than intended. */
+const MIN_BULK_DELETE_TERM_LENGTH = 3;
+
+/** An empty normalized query (e.g. "." or "-") matches nothing: `includes('')` would otherwise match everything. */
 function filterByName<T extends { filename: string }>(items: readonly T[], query: string): T[] {
 	const normalizedQuery = normalizeForSearch(query);
+	if (!normalizedQuery) return [];
 	return items.filter((item) => normalizeForSearch(item.filename).includes(normalizedQuery));
+}
+
+/** Greetings, single words typed wrong and pasted links are not descriptions; asking the model about them only costs money. */
+function isWorthAskingAssistant(query: string): boolean {
+	return normalizeForSearch(query).length >= 4 && !/^\w+:\/\//.test(query.trim());
 }
 
 /** Queries and bulk maintenance over the torrents and downloads already in the Real-Debrid account. */
@@ -54,7 +64,7 @@ export class LibraryService {
 	async search(query: string): Promise<SearchResult> {
 		const [torrents, downloads] = await Promise.all([this.realDebrid.listAllTorrents(), this.realDebrid.listAllDownloads()]);
 		const literal = { torrents: filterByName(torrents, query), downloads: filterByName(downloads, query), suggested: false };
-		if (literal.torrents.length > 0 || literal.downloads.length > 0 || !this.assistant) return literal;
+		if (literal.torrents.length > 0 || literal.downloads.length > 0 || !this.assistant || !isWorthAskingAssistant(query)) return literal;
 
 		try {
 			return await this.suggest(this.assistant, query, torrents, downloads);
@@ -100,6 +110,9 @@ export class LibraryService {
 
 	/** Delete every torrent whose name contains the query. */
 	async deleteTorrentsByName(query: string): Promise<BulkDeleteResult> {
+		if (normalizeForSearch(query).length < MIN_BULK_DELETE_TERM_LENGTH) {
+			throw new UserFacingError(`Termo muito genérico para uma exclusão em massa: use pelo menos ${MIN_BULK_DELETE_TERM_LENGTH} letras ou números.`);
+		}
 		const torrents = await this.realDebrid.listAllTorrents();
 		return this.deleteAll(filterByName(torrents, query));
 	}

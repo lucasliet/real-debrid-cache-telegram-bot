@@ -1,4 +1,4 @@
-import { actionRow, bold, code, commandLink, escapeHtml, formatBytes, link } from '@/bot/views/html.ts';
+import { actionRow, bold, code, commandLink, escapeHtml, failureLines, formatBytes, link, truncate } from '@/bot/views/html.ts';
 import type { ActiveTorrentCount, Download, Torrent, TorrentStatus, TranscodeLinks, UnrestrictedLink, User } from '@/realdebrid/types.ts';
 import type { BulkDeleteResult } from '@/services/LibraryService.ts';
 
@@ -93,7 +93,11 @@ export function bulkDeleteSummary(result: BulkDeleteResult, subject: string, des
 	const lines = [`✅ ${result.deleted.length} torrent(s) ${escapeHtml(subject)} deletado(s).`];
 	if (result.failed.length > 0) {
 		lines.push('', '⚠️ Falhas:');
-		lines.push(...result.failed.map(({ torrent, error }) => `• ${escapeHtml(torrent.filename)} (${code(torrent.id)}): ${escapeHtml(describeError(error))}`));
+		lines.push(
+			...failureLines(
+				result.failed.map(({ torrent, error }) => `${escapeHtml(truncate(torrent.filename))} (${code(torrent.id)}): ${escapeHtml(describeError(error))}`),
+			),
+		);
 	}
 	return lines.join('\n');
 }

@@ -1,3 +1,4 @@
+import { autoRetry } from '@grammyjs/auto-retry';
 import { Bot, type Context } from 'grammy';
 import type { BotFullInfo } from 'grammy/types';
 import { LibrarySearchAssistant, type TextGenerationRunner } from '@/ai/LibrarySearchAssistant.ts';
@@ -62,6 +63,8 @@ export function buildDependencies(config: AppConfig, options: BotOptions = {}): 
 export async function createBot(config: AppConfig, options: BotOptions = {}): Promise<Bot<Context>> {
 	const dependencies = buildDependencies(config, options);
 	const bot = new Bot<Context>(config.botToken, { botInfo: options.botInfo });
+	// Honour Telegram's flood control (429 retry_after) instead of losing the message.
+	bot.api.config.use(autoRetry({ maxRetryAttempts: 2, maxDelaySeconds: 30 }));
 	if (!options.botInfo) await bot.init();
 
 	bot.use(errorBoundary, allowOnly(config.allowedUserId));

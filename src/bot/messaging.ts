@@ -13,7 +13,7 @@ const HTML_OPTIONS = { parse_mode: 'HTML', link_preview_options: { is_disabled: 
 
 /**
  * Group blocks into as few messages as possible without splitting a block,
- * so HTML tags are never cut in half. Only a block longer than the limit is hard-split.
+ * so HTML tags are never cut in half. A block longer than the limit is split between its lines.
  * @param blocks - Self-contained pieces of text (e.g. one per torrent)
  * @param limit - Maximum length of each message
  * @returns Messages ready to send, in order
@@ -36,10 +36,27 @@ export function packBlocks(blocks: readonly string[], limit: number = TELEGRAM_M
 	return messages;
 }
 
+/** Split an oversized block between lines, so markup is not cut; only a single line longer than the limit is sliced. */
 function splitOversized(block: string, limit: number): string[] {
 	if (block.length <= limit) return [block];
 	const pieces: string[] = [];
-	for (let start = 0; start < block.length; start += limit) pieces.push(block.slice(start, start + limit));
+	let current = '';
+
+	for (const line of block.split('\n')) {
+		const candidate = current ? `${current}\n${line}` : line;
+		if (candidate.length <= limit) {
+			current = candidate;
+			continue;
+		}
+		if (current) pieces.push(current);
+		current = line;
+		while (current.length > limit) {
+			pieces.push(current.slice(0, limit));
+			current = current.slice(limit);
+		}
+	}
+
+	if (current) pieces.push(current);
 	return pieces;
 }
 

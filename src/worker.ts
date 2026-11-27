@@ -24,18 +24,19 @@ function loadBot(env: Env): Promise<Bot<Context>> {
 }
 
 /**
- * Handle one queued update and acknowledge it even on failure: a retry would add the torrent again
- * or repeat deletions, and handlers already report errors to the user.
+ * Handle one queued update at most once. The message is acknowledged before the work starts because the work
+ * is not idempotent: a redelivery (after an error, or after the invocation is cut off by the consumer's
+ * wall-clock limit) would add the torrents again or repeat deletions. Handlers report their own errors to the user.
  * @param initializedBot - Bot that processes the update
  * @param message - Queue message carrying the Telegram update
  */
 async function processQueuedUpdate(initializedBot: Bot<Context>, message: Message<Update>): Promise<void> {
+	message.ack();
 	try {
 		await initializedBot.handleUpdate(message.body);
 	} catch (error) {
 		console.error(`[QUEUE] Failed to handle update ${message.body.update_id} (attempt ${message.attempts}):`, error);
 	}
-	message.ack();
 }
 
 /**

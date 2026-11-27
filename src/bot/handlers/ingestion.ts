@@ -3,8 +3,11 @@ import type { BotDependencies } from '@/bot/createBot.ts';
 import { replySearch } from '@/bot/handlers/library.ts';
 import { describeError, editHtml, replyHtml } from '@/bot/messaging.ts';
 import { bundleSummary, IngestionProgressView, individualSummary } from '@/bot/views/ingestion.ts';
-import type { TorrentSource } from '@/services/TorrentIngestionService.ts';
+import type { IngestionEvent, IngestionResult, TorrentSource } from '@/services/TorrentIngestionService.ts';
 import { downloadTelegramFile } from '@/telegram/files.ts';
+
+/** Minimum spacing between edits of the progress message. */
+const MIN_PROGRESS_INTERVAL_MS = 2000;
 
 const MAGNET_PATTERN = /magnet:\?[^\s]+/i;
 
@@ -18,15 +21,28 @@ export function ingestionHandlers(dependencies: BotDependencies): Composer<Conte
 		const status = await ctx.reply('🔎 Analisando o torrent…');
 		const updateStatus = (html: string) => editHtml(ctx, status.chat.id, status.message_id, html);
 		const progress = new IngestionProgressView();
+		let lastEditAt = 0;
 
+		/** One edit per finished file at most, spaced out so a large pack does not trip Telegram's flood control. */
+		const reportProgress = async (event: IngestionEvent) => {
+			const html = progress.render(event);
+			if (event.type === 'file-started' || Date.now() - lastEditAt < MIN_PROGRESS_INTERVAL_MS) return;
+			lastEditAt = Date.now();
+			await updateStatus(html);
+		};
+
+		let result: IngestionResult;
 		try {
-			const result = await ingestion.ingest(source, (event) => updateStatus(progress.render(event)));
-			await replyHtml(ctx, result.strategy === 'bundle' ? bundleSummary(result.torrent) : individualSummary(result, describeError));
+			result = await ingestion.ingest(source, reportProgress);
 		} catch (error) {
 			// The error boundary replies with the reason; the status message just stops claiming work is in progress.
-			await updateStatus('❌ Não foi possível adicionar o torrent.');
+			await updateStatus('❌ Não foi possível concluir a adição do torrent.');
 			throw error;
 		}
+
+		// Reporting happens outside the try: a failure to deliver the summary is not a failed ingestion.
+		await updateStatus('✅ Processamento concluído.');
+		await replyHtml(ctx, result.strategy === 'bundle' ? bundleSummary(result.torrent) : individualSummary(result, describeError));
 	}
 
 	composer.on('message:document', async (ctx) => {

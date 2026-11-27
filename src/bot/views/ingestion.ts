@@ -1,4 +1,4 @@
-import { bold, code, escapeHtml } from '@/bot/views/html.ts';
+import { bold, code, escapeHtml, failureLines, truncate } from '@/bot/views/html.ts';
 import type { TorrentInfo } from '@/realdebrid/types.ts';
 import type { IngestionEvent, IngestionResult } from '@/services/TorrentIngestionService.ts';
 import { fileName } from '@/util/files.ts';
@@ -43,7 +43,7 @@ export function individualSummary(result: IndividualResult, describeError: (erro
 		`⚠️ ${result.added.length} de ${total} arquivo(s) adicionados.`,
 		'',
 		bold('Falhas:'),
-		...result.failed.map(({ file, error }) => `• ${escapeHtml(fileName(file.path))}: ${escapeHtml(describeError(error))}`),
+		...failureLines(result.failed.map(({ file, error }) => `${escapeHtml(truncate(fileName(file.path)))}: ${escapeHtml(describeError(error))}`)),
 	].join('\n');
 }
 

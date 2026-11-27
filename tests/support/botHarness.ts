@@ -60,6 +60,7 @@ export async function startBot(overrides: { config?: Partial<AppConfig>; externa
 	);
 
 	bot.api.config.use((_previous, method, payload) => {
+		assertDeliverable(method, payload as Record<string, unknown>);
 		telegramCalls.push({ method, payload: payload as Record<string, unknown> });
 		const result =
 			method === 'getFile'
@@ -78,9 +79,9 @@ export async function startBot(overrides: { config?: Partial<AppConfig>; externa
 		realDebrid,
 		telegramCalls,
 		externalRequests,
-		/** Deliver a text message; a leading command is tagged with the entity Telegram would attach. */
+		/** Deliver a text message; a leading command (with its optional @botname) is tagged with the entity Telegram would attach. */
 		sendText(text: string, fromId = OWNER_ID): Promise<void> {
-			const command = text.match(/^\/\w+/)?.[0];
+			const command = text.match(/^\/\w+(@\w+)?/)?.[0];
 			const entities = command ? [{ type: 'bot_command', offset: 0, length: command.length }] : undefined;
 			return bot.handleUpdate(message({ text, entities }, fromId));
 		},
@@ -92,4 +93,27 @@ export async function startBot(overrides: { config?: Partial<AppConfig>; externa
 			return telegramCalls.filter((call) => call.method === 'sendMessage' || call.method === 'editMessageText').map((call) => String(call.payload.text));
 		},
 	};
+}
+
+/**
+ * Refuse what the real Bot API refuses, so tests cannot pass with undeliverable messages:
+ * text over 4096 characters, and HTML with unknown or unbalanced tags or bare `<` / `&`.
+ */
+function assertDeliverable(method: string, payload: Record<string, unknown>): void {
+	if (method !== 'sendMessage' && method !== 'editMessageText') return;
+	const text = String(payload.text);
+	if (text.length === 0) throw new Error('Bad Request: message text is empty');
+	if (text.length > 4096) throw new Error(`Bad Request: message is too long (${text.length})`);
+	if (payload.parse_mode !== 'HTML') return;
+
+	const open: string[] = [];
+	for (const [, closing, tag] of text.matchAll(/<(\/?)([a-z]+)(?: href="[^"<>]*")?>/g)) {
+		if (!['b', 'code', 'a'].includes(tag)) throw new Error(`Bad Request: can't parse entities: unsupported tag <${tag}>`);
+		if (!closing) open.push(tag);
+		else if (open.pop() !== tag) throw new Error(`Bad Request: can't parse entities: unexpected </${tag}>`);
+	}
+	if (open.length > 0) throw new Error(`Bad Request: can't parse entities: unclosed <${open[0]}>`);
+
+	const withoutMarkup = text.replace(/<\/?[a-z]+(?: href="[^"<>]*")?>/g, '').replace(/&(amp|lt|gt|quot);/g, '');
+	if (/[<&]/.test(withoutMarkup)) throw new Error("Bad Request: can't parse entities: unescaped character");
 }

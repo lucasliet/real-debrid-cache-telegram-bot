@@ -79,13 +79,14 @@ testar o fluxo completo — do update recebido às mensagens enviadas — sem re
 
 ### Busca com Workers AI
 
-A busca continua literal e determinística. Só quando ela não encontra nada o bot envia ao modelo a consulta e os nomes dos 300 itens mais recentes da
+A busca continua literal e determinística. Só quando ela não encontra nada o bot envia ao modelo a consulta e os nomes dos 200 itens mais recentes da
 biblioteca, pedindo em JSON os números dos itens que correspondem. A resposta é tratada como entrada não confiável: só posições válidas são aceitas, no
 máximo 10, e o resultado é apresentado como sugestão. Se o modelo falhar, a resposta é a mesma de uma busca sem resultados.
 
 - A IA nunca participa de operações destrutivas: `/clean_by` e `/clean_nsw` usam apenas correspondência literal
 - Os nomes dos arquivos são enviados ao Workers AI, na sua própria conta Cloudflare
 - O modelo padrão é `@cf/meta/llama-3.3-70b-instruct-fp8-fast`, configurável por `AI_SEARCH_MODEL`; o uso é cobrado conforme o plano do Workers AI
+- Consultas muito curtas ou que são só um link não são enviadas ao modelo
 - Rodando localmente em long polling não há binding de IA e a busca funciona sem as sugestões
 
 ### Integração com a API do Real-Debrid
@@ -177,6 +178,9 @@ Telegram (a operação é idempotente).
 
 - `SERVER_URL` vem de `vars` em `wrangler.jsonc`; ajuste para o domínio do seu Worker
 - `static/` é publicado como static assets (ex.: `/robots.txt`)
+- No plano gratuito do Workers cada execução faz no máximo 50 subrequests: adicionar um pacote com mais de ~10 ROMs ou rodar `/clean_nsw` numa biblioteca
+  com mais de ~40 torrents excede esse limite e é interrompido no meio. O plano pago (10.000 por execução) comporta todos os comandos
+- Cada update é processado no máximo uma vez: a mensagem da fila é confirmada antes do processamento, porque repetir adicionaria os torrents de novo
 - Push na `main` executa a verificação e o deploy pelo GitHub Actions, usando os secrets `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID`
 
 ## Licença

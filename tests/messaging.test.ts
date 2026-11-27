@@ -9,7 +9,8 @@ test('packs blocks into as few messages as fit the limit', () => {
 	assert.deepStrictEqual(packBlocks([], 10), []);
 });
 
-test('hard-splits only blocks longer than the limit', () => {
+test('splits an oversized block between its lines, slicing only a line longer than the limit', () => {
+	assert.deepStrictEqual(packBlocks(['<b>aa</b>\n<b>bb</b>\n<b>cc</b>'], 20), ['<b>aa</b>\n<b>bb</b>', '<b>cc</b>']);
 	assert.deepStrictEqual(packBlocks(['a'.repeat(25), 'b'], 10), ['a'.repeat(10), 'a'.repeat(10), 'aaaaa\n\nb']);
 });
 

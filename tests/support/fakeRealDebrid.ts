@@ -22,6 +22,10 @@ export class FakeRealDebrid {
 	conversionPolls = 0;
 	/** Status reported for newly added torrents once resolved. */
 	statusOfNextTorrents: TorrentStatus = 'waiting_files_selection';
+	/** Makes `GET /torrents/info` fail for torrents whose files were already selected. */
+	infoFailsAfterSelection = false;
+	/** When false, listings omit the `X-Total-Count` header. */
+	reportsTotal = true;
 	/** Torrent ids whose file selection is refused. */
 	readonly refusesSelection = new Set<string>();
 	/** Torrent ids whose deletion is refused. */
@@ -130,7 +134,7 @@ export class FakeRealDebrid {
 		const slice = items.slice((page - 1) * limit, page * limit);
 		// The real API answers an empty listing with 204 and no body.
 		if (slice.length === 0) return new Response(null, { status: 204 });
-		return json(slice, { headers: { 'X-Total-Count': String(items.length) } });
+		return json(slice, this.reportsTotal ? { headers: { 'X-Total-Count': String(items.length) } } : {});
 	}
 
 	private add(): Response {
@@ -143,6 +147,7 @@ export class FakeRealDebrid {
 	private info(id: string): Response {
 		const torrent = this.torrents.get(id);
 		if (!torrent) return apiError(404, 'unknown_ressource', 7);
+		if (this.infoFailsAfterSelection && torrent.status === 'downloading') return apiError(503, 'service_unavailable', 25);
 		const pending = this.pendingPolls.get(id) ?? 0;
 		if (pending > 0) {
 			this.pendingPolls.set(id, pending - 1);

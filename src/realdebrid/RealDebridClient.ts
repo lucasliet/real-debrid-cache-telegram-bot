@@ -145,16 +145,18 @@ export class RealDebridClient {
 	private async requestPage<T>(path: string, page: number, limit: number): Promise<Page<T>> {
 		const response = await this.send('GET', path, { query: { page, limit } });
 		const items = (await this.parseBody<T[]>(response)) ?? [];
-		const total = Number(response.headers.get('X-Total-Count'));
-		return { items, total: Number.isFinite(total) && total >= items.length ? total : items.length };
+		return { items, total: reportedTotal(response) ?? items.length };
 	}
 
 	private async requestAllPages<T>(path: string): Promise<T[]> {
 		const all: T[] = [];
 		for (let page = 1; ; page++) {
-			const { items, total } = await this.requestPage<T>(path, page, FULL_LISTING_PAGE_SIZE);
+			const response = await this.send('GET', path, { query: { page, limit: FULL_LISTING_PAGE_SIZE } });
+			const items = (await this.parseBody<T[]>(response)) ?? [];
 			all.push(...items);
-			if (items.length < FULL_LISTING_PAGE_SIZE || all.length >= total) return all;
+			// Without a usable total, only a short page proves the listing is over.
+			const total = reportedTotal(response);
+			if (items.length < FULL_LISTING_PAGE_SIZE || (total !== undefined && all.length >= total)) return all;
 		}
 	}
 
@@ -211,4 +213,11 @@ export class RealDebridClient {
 			return new RealDebridError(response.status);
 		}
 	}
+}
+
+/** Grand total from `X-Total-Count`, or `undefined` when the header is missing or not a number. */
+function reportedTotal(response: Response): number | undefined {
+	const header = response.headers.get('X-Total-Count');
+	const total = header === null ? Number.NaN : Number(header);
+	return Number.isInteger(total) && total >= 0 ? total : undefined;
 }

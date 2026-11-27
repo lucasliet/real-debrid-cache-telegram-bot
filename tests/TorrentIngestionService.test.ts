@@ -1,6 +1,7 @@
 import { assert, test } from 'vitest';
 import { RealDebridClient } from '@/realdebrid/RealDebridClient.ts';
-import { type IngestionEvent, TorrentIngestionService } from '@/services/TorrentIngestionService.ts';
+import { RealDebridError } from '@/realdebrid/RealDebridError.ts';
+import { type IngestionEvent, PendingTorrentError, TorrentIngestionService } from '@/services/TorrentIngestionService.ts';
 import { UserFacingError } from '@/util/UserFacingError.ts';
 import { FakeRealDebrid, torrentFile } from './support/fakeRealDebrid.ts';
 import { rejects } from './support/rejects.ts';
@@ -57,12 +58,33 @@ test('waits for the magnet conversion before reading the file list', async () =>
 	assert.deepStrictEqual(api.requestsTo('GET', '/torrents/info').length, 3 + 1 + 1);
 });
 
-test('discards the torrent when its files never show up', async () => {
+test('keeps a torrent that is still converting, so a slow magnet is not thrown away', async () => {
 	const { api, service } = setup({ maxPollAttempts: 2 });
 	api.conversionPolls = 99;
 
-	await rejects(() => service.ingest(MAGNET), UserFacingError, 'lista de arquivos');
+	const error = await rejects(() => service.ingest(MAGNET), PendingTorrentError, '/delete_torrent T1');
+	assert.strictEqual(error.torrentId, 'T1');
+	assert.deepStrictEqual([...api.torrents.keys()], ['T1']);
+});
+
+test('discards a bundle whose file selection is refused', async () => {
+	const { api, service } = setup();
+	api.filesOfNextTorrents = [torrentFile(1, '/Movie.mkv')];
+	api.refusesSelection.add('T1');
+
+	await rejects(() => service.ingest(MAGNET), RealDebridError);
 	assert.deepStrictEqual(api.torrents.size, 0);
+});
+
+test('reports a bundle as added even when it cannot be read back after the selection', async () => {
+	const { api, service } = setup();
+	api.filesOfNextTorrents = [torrentFile(1, '/Movie.mkv')];
+	api.infoFailsAfterSelection = true;
+
+	const result = await service.ingest(MAGNET);
+
+	assert.strictEqual(result.strategy, 'bundle');
+	assert.deepStrictEqual(selectedPaths(api), [['/Movie.mkv']]);
 });
 
 test('discards the torrent when Real-Debrid rejects it', async () => {

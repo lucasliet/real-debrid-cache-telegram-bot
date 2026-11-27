@@ -26,7 +26,13 @@ export async function downloadTelegramFile(api: Api, botToken: string, document:
 	const { file_path: filePath } = await api.getFile(document.file_id);
 	if (!filePath) throw new UserFacingError('O Telegram não disponibilizou o arquivo para download.');
 
-	const response = await fetchFile(`https://api.telegram.org/file/bot${botToken}/${filePath}`);
+	let response: Response;
+	try {
+		response = await fetchFile(`https://api.telegram.org/file/bot${botToken}/${filePath}`);
+	} catch {
+		// The cause is dropped on purpose: network errors may quote the URL, which embeds the bot token.
+		throw new UserFacingError('Não foi possível baixar o arquivo do Telegram (falha de rede).');
+	}
 	if (!response.ok) throw new UserFacingError(`Não foi possível baixar o arquivo do Telegram (HTTP ${response.status}).`);
 	return response.arrayBuffer();
 }

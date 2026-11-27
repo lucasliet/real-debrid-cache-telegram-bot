@@ -1,6 +1,6 @@
 #!/bin/sh
 set -e
 
-# Format and apply safe lint fixes, then re-stage whatever was touched
-npm run --silent format
-git add -u
+# Check only what is staged and never touch the index: partial commits stay partial.
+# Run `npm run format` to fix what this reports.
+npx --no-install biome check --staged --no-errors-on-unmatched

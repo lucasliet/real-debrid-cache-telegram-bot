@@ -175,6 +175,88 @@ test('bulk-deletes by name and reports what could not be deleted', async () => {
 	assert.include(bot.texts()[0], 'Zelda TOTK (<code>B</code>): Permissão negada');
 });
 
+test('refuses a bulk deletion whose term normalizes to nothing or to almost nothing', async () => {
+	for (const term of ['.', '-', '- _', '\u0301', 'ab']) {
+		const bot = await startBot();
+		bot.realDebrid.seedTorrent({ id: 'A', filename: 'Zelda.BOTW' });
+		bot.realDebrid.seedTorrent({ id: 'B', filename: 'ab-cd' });
+
+		await bot.sendText(`/clean_by ${term}`);
+
+		assert.deepStrictEqual([...bot.realDebrid.torrents.keys()], ['A', 'B'], `"${term}" must not delete anything`);
+		assert.match(bot.texts()[0], /Termo muito genérico/);
+		assert.deepStrictEqual(bot.realDebrid.requestsTo('DELETE', '/').length, 0);
+	}
+});
+
+test('a search made only of separators finds nothing instead of everything', async () => {
+	const bot = await startBot();
+	bot.realDebrid.seedTorrent({ id: 'A', filename: 'Zelda.BOTW' });
+
+	await bot.sendText('...');
+
+	assert.deepStrictEqual(bot.texts(), ['❌ Nenhum resultado para "...".']);
+});
+
+test('summarizes hundreds of bulk-delete failures in a single deliverable message', async () => {
+	const bot = await startBot();
+	for (let index = 0; index < 120; index++) {
+		bot.realDebrid.seedTorrent({ id: `ID${index}`, filename: `Zelda <${index}> & ${'x'.repeat(150)}` });
+		bot.realDebrid.refusesDeletion.add(`ID${index}`);
+	}
+
+	await bot.sendText('/clean_by zelda');
+
+	assert.strictEqual(bot.texts().length, 1);
+	assert.include(bot.texts()[0], '… e mais 105.');
+});
+
+test('reports a large per-file ingestion with many failures without calling it a failed torrent', async () => {
+	const bot = await startBot();
+	bot.realDebrid.filesOfNextTorrents = Array.from({ length: 80 }, (_, index) => torrentFile(index + 1, `/Game <${index}> ${'y'.repeat(60)}.nsp`));
+	for (let index = 2; index <= 80; index++) bot.realDebrid.refusesSelection.add(`T${index}`);
+
+	await bot.sendText('magnet:?xt=urn:btih:abc');
+
+	const texts = bot.texts();
+	assert.include(texts.at(-1) ?? '', '1 de 80 arquivo(s) adicionados');
+	assert.include(texts.at(-1) ?? '', '… e mais 64.');
+	assert.include(texts.at(-2) ?? '', 'Processamento concluído');
+	assert.strictEqual(
+		texts.some((text) => text.includes('Não foi possível')),
+		false,
+	);
+	const edits = bot.telegramCalls.filter((call) => call.method === 'editMessageText');
+	assert.isBelow(edits.length, 80, 'progress edits must be paced, not one per event');
+});
+
+test('tells the user a bundle failed and leaves no torrent behind', async () => {
+	const bot = await startBot();
+	bot.realDebrid.filesOfNextTorrents = [torrentFile(1, '/Movie.mkv')];
+	bot.realDebrid.refusesSelection.add('T1');
+
+	await bot.sendText('magnet:?xt=urn:btih:abc');
+
+	assert.strictEqual(bot.realDebrid.torrents.size, 0);
+	assert.deepStrictEqual(bot.texts().slice(-2), ['❌ Não foi possível concluir a adição do torrent.', '❌ Valor de parâmetro inválido']);
+});
+
+test('finalizes the status message of a bundle', async () => {
+	const bot = await startBot();
+	bot.realDebrid.filesOfNextTorrents = [torrentFile(1, '/Movie.mkv')];
+
+	await bot.sendText('magnet:?xt=urn:btih:abc');
+
+	assert.deepStrictEqual(bot.texts().slice(0, 2), ['🔎 Analisando o torrent…', '✅ Processamento concluído.']);
+	assert.include(bot.texts()[2], 'Torrent adicionado');
+});
+
+test('accepts commands addressed to the bot by name', async () => {
+	const bot = await startBot();
+	await bot.sendText('/ajuda@test_bot');
+	assert.include(bot.texts()[0], 'Instruções de uso');
+});
+
 test('deletes only torrents that contain Switch ROMs', async () => {
 	const bot = await startBot();
 	bot.realDebrid.seedTorrent({ id: 'A', filename: 'Game', files: [torrentFile(1, '/readme.txt'), torrentFile(2, '/Game.XCZ')] });

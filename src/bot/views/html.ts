@@ -41,3 +41,21 @@ export function formatBytes(bytes: number): string {
 	const value = bytes / 1024 ** exponent;
 	return `${value.toFixed(exponent === 0 ? 0 : 2)} ${units[exponent]}`;
 }
+
+/** Failures listed individually in a summary; the rest is only counted, so the summary always fits one message. */
+const MAX_LISTED_FAILURES = 15;
+
+/** Shorten a name for a summary line. */
+export function truncate(text: string, maxLength = 80): string {
+	return text.length <= maxLength ? text : `${text.slice(0, maxLength - 1)}…`;
+}
+
+/**
+ * Bullet list of failures, capped so a summary with hundreds of failures stays readable and within Telegram's limit.
+ * @param entries - Already escaped HTML, one per failure
+ */
+export function failureLines(entries: readonly string[]): string[] {
+	const lines = entries.slice(0, MAX_LISTED_FAILURES).map((entry) => `• ${entry}`);
+	if (entries.length > MAX_LISTED_FAILURES) lines.push(`… e mais ${entries.length - MAX_LISTED_FAILURES}.`);
+	return lines;
+}

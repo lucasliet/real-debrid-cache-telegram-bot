@@ -60,7 +60,13 @@ test('rejects answers outside the expected format', async () => {
 });
 
 test('suggests entries through the AI only when the literal search finds nothing', async () => {
-	const { ai, calls } = fakeAi(() => ({ response: { matches: [2, 0] } }));
+	// The answer is derived from the numbered list the model receives, so the numbering and the
+	// mapping back to torrents and downloads are verified together.
+	const { ai, calls } = fakeAi((inputs) => {
+		const prompt = (inputs.messages as { content: string }[])[1].content;
+		const matches = [...prompt.matchAll(/^(\d+): .*Oppenheimer/gm)].map(([, position]) => Number(position));
+		return { response: { matches: matches.reverse() } };
+	});
 	const bot = await startBot({ ai });
 	bot.realDebrid.seedTorrent({ id: 'A', filename: 'Oppenheimer.2023.2160p.UHD.BluRay.x265' });
 	bot.realDebrid.seedTorrent({ id: 'B', filename: 'Barbie.2023.1080p' });
@@ -87,6 +93,29 @@ test('falls back to "no results" when the AI fails or finds nothing', async () =
 
 		assert.deepStrictEqual(bot.texts(), ['❌ Nenhum resultado para "duna".']);
 	}
+});
+
+test('maps suggestions correctly when torrents alone fill the candidate list', async () => {
+	const { ai, prompt } = fakeAi(() => ({ response: { matches: [MAX_CANDIDATES - 1] } }));
+	const bot = await startBot({ ai });
+	for (let index = 0; index < MAX_CANDIDATES + 5; index++) bot.realDebrid.seedTorrent({ id: `T${index}`, filename: `Torrent.${index}` });
+	bot.realDebrid.seedDownload({ id: 'D1', filename: 'Download.left.out' });
+
+	await bot.sendText('uma descrição qualquer');
+
+	assert.notInclude(prompt(), 'Download.left.out');
+	assert.include(bot.texts()[1], `Torrent.${MAX_CANDIDATES - 1}`);
+});
+
+test('does not spend an AI call on greetings or pasted links', async () => {
+	const { ai, calls } = fakeAi(() => ({ response: { matches: [0] } }));
+	const bot = await startBot({ ai });
+	bot.realDebrid.seedTorrent({ id: 'A', filename: 'Barbie.2023' });
+
+	await bot.sendText('oi');
+	await bot.sendText('https://hoster.example/arquivo-qualquer');
+
+	assert.strictEqual(calls.length, 0);
 });
 
 test('works without an AI binding', async () => {

@@ -25,6 +25,16 @@ export type IngestionResult =
 	/** Each file became its own torrent. */
 	| { readonly strategy: 'individual'; readonly added: readonly TorrentFile[]; readonly failed: readonly FileFailure[] };
 
+/** The torrent was accepted but Real-Debrid has not resolved its files yet (e.g. a magnet with few peers). */
+export class PendingTorrentError extends UserFacingError {
+	constructor(readonly torrentId: string) {
+		super(
+			`O Real-Debrid ainda não resolveu os arquivos do torrent ${torrentId}. Ele continua na sua conta: acompanhe com /incomplete e, quando sair de "convertendo magnet", selecione os arquivos no site do Real-Debrid, ou remova com /delete_torrent ${torrentId}.`,
+		);
+		this.name = 'PendingTorrentError';
+	}
+}
+
 export interface TorrentIngestionOptions {
 	sleep?: Sleep;
 	/** Delay between checks while Real-Debrid resolves the file list. */
@@ -61,11 +71,12 @@ export class TorrentIngestionService {
 	 */
 	async ingest(source: TorrentSource, onEvent: (event: IngestionEvent) => Promise<void> = async () => {}): Promise<IngestionResult> {
 		const first = await this.add(source);
-		const files = await this.resolveFilesOrDiscard(first.id);
+		const resolved = await this.discardUnlessPending(first.id, () => this.waitForFiles(first.id));
+		const files = resolved.files;
 
 		if (!files.every(isSwitchRom)) {
-			await this.realDebrid.selectFiles(first.id, 'all');
-			return { strategy: 'bundle', torrent: await this.realDebrid.getTorrentInfo(first.id) };
+			await this.discardUnlessPending(first.id, () => this.realDebrid.selectFiles(first.id, 'all'));
+			return { strategy: 'bundle', torrent: await this.refreshed(resolved) };
 		}
 
 		const added: TorrentFile[] = [];
@@ -100,8 +111,22 @@ export class TorrentIngestionService {
 			if (!existingTorrentId) await this.waitForFiles(torrentId);
 			await this.realDebrid.selectFiles(torrentId, [file.id]);
 		} catch (error) {
+			// Unlike the first copy, an extra copy is always disposable: the file is simply reported as failed.
 			await this.discard(torrentId);
 			throw error;
+		}
+	}
+
+	/**
+	 * Read the torrent again after its files were selected. The selection already went through,
+	 * so a failure here must not be reported as a failed ingestion: fall back to what is known.
+	 */
+	private async refreshed(known: TorrentInfo): Promise<TorrentInfo> {
+		try {
+			return await this.realDebrid.getTorrentInfo(known.id);
+		} catch (error) {
+			console.warn(`[INGESTION] Could not refresh torrent ${known.id} after selecting its files:`, error);
+			return known;
 		}
 	}
 
@@ -109,29 +134,35 @@ export class TorrentIngestionService {
 		return source.kind === 'magnet' ? this.realDebrid.addMagnet(source.magnet) : this.realDebrid.addTorrent(source.bytes);
 	}
 
-	private async resolveFilesOrDiscard(torrentId: string): Promise<TorrentFile[]> {
+	/**
+	 * Run a step on the first copy of the torrent and discard that copy when the step fails, so nothing is left
+	 * behind waiting for a file selection. A torrent that is merely still converting is kept: deleting it would
+	 * throw the conversion away and make a slow magnet impossible to add.
+	 */
+	private async discardUnlessPending<T>(torrentId: string, step: () => Promise<T>): Promise<T> {
 		try {
-			return await this.waitForFiles(torrentId);
+			return await step();
 		} catch (error) {
-			await this.discard(torrentId);
+			if (!(error instanceof PendingTorrentError)) await this.discard(torrentId);
 			throw error;
 		}
 	}
 
 	/**
 	 * Poll the torrent until Real-Debrid knows its files (a magnet first goes through `magnet_conversion`).
-	 * @throws UserFacingError when the torrent fails or the file list does not show up in time
+	 * @throws PendingTorrentError when the file list does not show up in time
+	 * @throws UserFacingError when Real-Debrid rejects the torrent
 	 */
-	private async waitForFiles(torrentId: string): Promise<TorrentFile[]> {
+	private async waitForFiles(torrentId: string): Promise<TorrentInfo> {
 		for (let attempt = 1; attempt <= this.maxPollAttempts; attempt++) {
 			const info = await this.realDebrid.getTorrentInfo(torrentId);
 			if (FAILED_TORRENT_STATUSES.has(info.status)) {
 				throw new UserFacingError(`O Real-Debrid rejeitou o torrent (status: ${info.status}).`);
 			}
-			if (info.files?.length > 0) return info.files;
+			if (info.files?.length > 0) return info;
 			if (attempt < this.maxPollAttempts) await this.sleep(this.pollIntervalMs);
 		}
-		throw new UserFacingError('O Real-Debrid não disponibilizou a lista de arquivos do torrent a tempo. Tente novamente em instantes.');
+		throw new PendingTorrentError(torrentId);
 	}
 
 	private async discard(torrentId: string): Promise<void> {

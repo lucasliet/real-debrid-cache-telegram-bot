@@ -59,7 +59,8 @@ export function createWebhookApp(options: WebhookAppOptions): Hono {
 	});
 
 	app.onError((error, c) => {
-		console.error('[HTTP] Unhandled error:', error);
+		// Only the message: API errors carry their request payload, which includes the webhook secret.
+		console.error(`[HTTP] Unhandled error: ${error instanceof Error ? error.message : String(error)}`);
 		return c.json({ ok: false, error: 'internal error' }, 500);
 	});
 

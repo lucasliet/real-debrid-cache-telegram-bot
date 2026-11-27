@@ -28,19 +28,19 @@ export function libraryHandlers({ realDebrid, library, sleep }: BotDependencies)
 
 	composer.command('status_torrent', async (ctx) => {
 		const { items, total } = await realDebrid.listTorrents(1, LISTING_PAGE_SIZE);
-		if (items.length === 0) return void await ctx.reply('❌ Nenhum torrent encontrado.');
+		if (items.length === 0) return void (await ctx.reply('❌ Nenhum torrent encontrado.'));
 		await replyBlocks(ctx, [listingHeader('📥 Torrents', items.length, total), ...items.map(torrentCard)], sleep);
 	});
 
 	composer.command('status_download', async (ctx) => {
 		const { items, total } = await realDebrid.listDownloads(1, LISTING_PAGE_SIZE);
-		if (items.length === 0) return void await ctx.reply('❌ Nenhum download encontrado.');
+		if (items.length === 0) return void (await ctx.reply('❌ Nenhum download encontrado.'));
 		await replyBlocks(ctx, [listingHeader('📦 Downloads', items.length, total), ...items.map(downloadCard)], sleep);
 	});
 
 	composer.command('incomplete', async (ctx) => {
 		const torrents = await library.listIncompleteTorrents();
-		if (torrents.length === 0) return void await ctx.reply('✅ Nenhum torrent incompleto.');
+		if (torrents.length === 0) return void (await ctx.reply('✅ Nenhum torrent incompleto.'));
 		const shown = torrents.slice(0, LISTING_PAGE_SIZE);
 		await replyBlocks(ctx, [listingHeader('⏳ Torrents incompletos', shown.length, torrents.length), ...shown.map(torrentCard)], sleep);
 	});
@@ -57,7 +57,7 @@ export function libraryHandlers({ realDebrid, library, sleep }: BotDependencies)
 
 	composer.command('stream', async (ctx) => {
 		const blocks = streamBlocks(await realDebrid.getTranscodeLinks(requireArgument(ctx, '/stream 12345')));
-		if (blocks.length === 0) return void await ctx.reply('❌ Nenhum link de streaming disponível para este arquivo.');
+		if (blocks.length === 0) return void (await ctx.reply('❌ Nenhum link de streaming disponível para este arquivo.'));
 		await replyBlocks(ctx, [bold('🎥 Links de streaming'), ...blocks], sleep);
 	});
 
@@ -94,10 +94,11 @@ export function libraryHandlers({ realDebrid, library, sleep }: BotDependencies)
  * @param query - Text typed by the user
  */
 export async function replySearch(ctx: Context, query: string, { library, sleep }: BotDependencies): Promise<void> {
-	const { torrents, downloads } = await library.search(query);
+	const { torrents, downloads, suggested } = await library.search(query);
 	if (torrents.length === 0 && downloads.length === 0) {
-		return void await replyHtml(ctx, `❌ Nenhum resultado para "${escapeHtml(query)}".`);
+		return void (await replyHtml(ctx, `❌ Nenhum resultado para "${escapeHtml(query)}".`));
 	}
+	if (suggested) await replyHtml(ctx, `🤖 Nenhum nome contém "${escapeHtml(query)}". Estas são sugestões da IA:`);
 
 	if (torrents.length > 0) {
 		const shown = torrents.slice(0, LISTING_PAGE_SIZE);

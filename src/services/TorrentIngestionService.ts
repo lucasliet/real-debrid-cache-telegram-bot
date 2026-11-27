@@ -2,13 +2,11 @@ import { SWITCH_ROM_EXTENSIONS } from '@/config/constants.ts';
 import type { RealDebridClient } from '@/realdebrid/RealDebridClient.ts';
 import { type CreatedResource, FAILED_TORRENT_STATUSES, type TorrentFile, type TorrentInfo } from '@/realdebrid/types.ts';
 import { fileExtension } from '@/util/files.ts';
-import { type Sleep, sleep as realSleep } from '@/util/sleep.ts';
+import { sleep as realSleep, type Sleep } from '@/util/sleep.ts';
 import { UserFacingError } from '@/util/UserFacingError.ts';
 
 /** Where a torrent comes from; kept so it can be added again, once per file. */
-export type TorrentSource =
-	| { readonly kind: 'magnet'; readonly magnet: string }
-	| { readonly kind: 'file'; readonly bytes: ArrayBuffer };
+export type TorrentSource = { readonly kind: 'magnet'; readonly magnet: string } | { readonly kind: 'file'; readonly bytes: ArrayBuffer };
 
 export interface FileFailure {
 	readonly file: TorrentFile;
@@ -45,7 +43,10 @@ export class TorrentIngestionService {
 	private readonly pollIntervalMs: number;
 	private readonly maxPollAttempts: number;
 
-	constructor(private readonly realDebrid: RealDebridClient, options: TorrentIngestionOptions = {}) {
+	constructor(
+		private readonly realDebrid: RealDebridClient,
+		options: TorrentIngestionOptions = {},
+	) {
 		this.sleep = options.sleep ?? realSleep;
 		this.pollIntervalMs = options.pollIntervalMs ?? 1000;
 		this.maxPollAttempts = options.maxPollAttempts ?? 30;

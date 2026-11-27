@@ -1,5 +1,5 @@
-import { SWITCH_ROM_EXTENSIONS } from '@/config/constants.ts';
 import { bold, escapeHtml } from '@/bot/views/html.ts';
+import { SWITCH_ROM_EXTENSIONS } from '@/config/constants.ts';
 
 interface CommandSpec {
 	readonly command: string;

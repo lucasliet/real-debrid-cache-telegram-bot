@@ -33,7 +33,7 @@ export class FakeRealDebrid {
 		const request = new Request(input, init);
 		const url = new URL(request.url);
 		const path = url.pathname.replace('/rest/1.0', '');
-		const body = request.body ? await request.text() : '';
+		const body = new TextDecoder().decode(await request.arrayBuffer());
 		this.requests.push({ method: request.method, path, query: url.searchParams, headers: request.headers, body });
 		return this.route(request.method, path, url.searchParams, new URLSearchParams(body));
 	};

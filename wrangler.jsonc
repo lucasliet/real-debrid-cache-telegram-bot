@@ -1,21 +1,20 @@
 {
+	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "real-debrid-cache-bot",
-	"main": "dist/worker.js",
+	"main": "src/worker.ts",
 	"compatibility_date": "2026-09-01",
-	// nodejs_compat resolves `node:process` and populates `process.env` with vars/secrets
-	"compatibility_flags": ["nodejs_compat"],
-	"build": {
-		"command": "deno task build",
-		"watch_dir": ["src", "worker.ts"]
-	},
 	// the webhook only enqueues updates; the consumer runs the bot because work left after an HTTP response is cancelled
 	"queues": {
 		"producers": [{ "binding": "UPDATES_QUEUE", "queue": "real-debrid-cache-bot-updates" }],
 		"consumers": [{ "queue": "real-debrid-cache-bot-updates", "max_batch_size": 1, "max_batch_timeout": 0, "max_retries": 2 }]
 	},
+	// Workers AI suggests library entries when a literal search finds nothing
+	"ai": { "binding": "AI", "remote": true },
 	"vars": {
 		"SERVER_URL": "https://real-debrid-cache-bot.lucasliet.workers.dev/webhook"
 	},
+	// declared so `wrangler types` knows them and deploys fail fast when one is missing
+	"secrets": { "required": ["BOT_TOKEN", "RD_TOKEN", "ALLOWED_USER_ID"] },
 	"assets": {
 		"directory": "./static"
 	},

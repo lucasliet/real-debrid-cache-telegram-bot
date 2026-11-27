@@ -1,15 +1,16 @@
 import type { Update } from 'grammy/types';
 import { Hono } from 'hono';
-import { loadConfig } from '@/config/environment.ts';
+import type { AppConfig } from '@/config/environment.ts';
 import { registerWebhook } from '@/telegram/webhook.ts';
 import { deriveWebhookSecret, isValidWebhookSecret, WEBHOOK_SECRET_HEADER } from '@/telegram/webhookSecret.ts';
 
 export interface WebhookAppOptions {
 	/** Persists the update for asynchronous processing (a Cloudflare Queue in production). */
 	enqueueUpdate: (update: Update) => Promise<void>;
+	/** Reads the configuration; called per request so a misconfiguration surfaces as a 500, not a crash at startup. */
+	loadConfig: () => AppConfig;
 	/** Registers the webhook on Telegram; replaceable in tests. */
 	registerWebhook?: typeof registerWebhook;
-	loadConfig?: typeof loadConfig;
 }
 
 /**
@@ -20,7 +21,7 @@ export interface WebhookAppOptions {
  * @returns Hono app
  */
 export function createWebhookApp(options: WebhookAppOptions): Hono {
-	const { enqueueUpdate, registerWebhook: register = registerWebhook, loadConfig: load = loadConfig } = options;
+	const { enqueueUpdate, loadConfig: load, registerWebhook: register = registerWebhook } = options;
 	const app = new Hono();
 
 	app.use('*', async (c, next) => {

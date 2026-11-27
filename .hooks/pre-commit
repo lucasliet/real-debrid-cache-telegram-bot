@@ -1,8 +1,6 @@
 #!/bin/sh
 set -e
 
-# Format, then re-stage whatever the formatter touched
-deno fmt
+# Format and apply safe lint fixes, then re-stage whatever was touched
+npm run --silent format
 git add -u
-
-deno lint

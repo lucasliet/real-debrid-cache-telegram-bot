@@ -1,7 +1,7 @@
 import type { Context } from 'grammy';
 import { TELEGRAM_MESSAGE_LIMIT } from '@/config/constants.ts';
 import { RealDebridError } from '@/realdebrid/RealDebridError.ts';
-import { type Sleep, sleep as realSleep } from '@/util/sleep.ts';
+import { sleep as realSleep, type Sleep } from '@/util/sleep.ts';
 import { UserFacingError } from '@/util/UserFacingError.ts';
 
 const BLOCK_SEPARATOR = '\n\n';

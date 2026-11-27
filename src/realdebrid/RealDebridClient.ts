@@ -1,6 +1,6 @@
-import { type Sleep, sleep as realSleep } from '@/util/sleep.ts';
 import { RealDebridError } from '@/realdebrid/RealDebridError.ts';
 import type { ActiveTorrentCount, CreatedResource, Download, Page, Torrent, TorrentInfo, TranscodeLinks, UnrestrictedLink, User } from '@/realdebrid/types.ts';
+import { sleep as realSleep, type Sleep } from '@/util/sleep.ts';
 
 const BASE_URL = 'https://api.real-debrid.com/rest/1.0';
 
@@ -144,14 +144,14 @@ export class RealDebridClient {
 
 	private async requestPage<T>(path: string, page: number, limit: number): Promise<Page<T>> {
 		const response = await this.send('GET', path, { query: { page, limit } });
-		const items = await this.parseBody<T[]>(response) ?? [];
+		const items = (await this.parseBody<T[]>(response)) ?? [];
 		const total = Number(response.headers.get('X-Total-Count'));
 		return { items, total: Number.isFinite(total) && total >= items.length ? total : items.length };
 	}
 
 	private async requestAllPages<T>(path: string): Promise<T[]> {
 		const all: T[] = [];
-		for (let page = 1;; page++) {
+		for (let page = 1; ; page++) {
 			const { items, total } = await this.requestPage<T>(path, page, FULL_LISTING_PAGE_SIZE);
 			all.push(...items);
 			if (items.length < FULL_LISTING_PAGE_SIZE || all.length >= total) return all;
@@ -159,13 +159,13 @@ export class RealDebridClient {
 	}
 
 	private async request<T>(method: string, path: string, options: RequestOptions = {}): Promise<T> {
-		return await this.parseBody<T>(await this.send(method, path, options)) as T;
+		return (await this.parseBody<T>(await this.send(method, path, options))) as T;
 	}
 
 	/** Empty responses (204, or the 200/201 some endpoints send without a body) resolve to `undefined`. */
 	private async parseBody<T>(response: Response): Promise<T | undefined> {
 		const text = response.status === 204 ? '' : await response.text();
-		return text ? JSON.parse(text) as T : undefined;
+		return text ? (JSON.parse(text) as T) : undefined;
 	}
 
 	private async send(method: string, path: string, options: RequestOptions): Promise<Response> {
@@ -178,7 +178,7 @@ export class RealDebridClient {
 		if (options.contentType) headers.set('Content-Type', options.contentType);
 		const body = options.form ? new URLSearchParams(options.form) : options.body;
 
-		for (let attempt = 0;; attempt++) {
+		for (let attempt = 0; ; attempt++) {
 			await this.throttle();
 			const response = await this.fetch(url, { method, headers, body });
 			if (response.ok) return response;
@@ -205,7 +205,7 @@ export class RealDebridClient {
 
 	private async toError(response: Response): Promise<RealDebridError> {
 		try {
-			const payload = await response.json() as { error?: string; error_code?: number };
+			const payload = (await response.json()) as { error?: string; error_code?: number };
 			return new RealDebridError(response.status, payload.error_code, payload.error);
 		} catch {
 			return new RealDebridError(response.status);

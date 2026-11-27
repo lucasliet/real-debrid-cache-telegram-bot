@@ -11,30 +11,30 @@ permissions:
 
 jobs:
   verify:
-    name: Verify (format, lint, types, tests, bundle)
+    name: Verify (lint, types, tests, bundle)
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: denoland/setup-deno@v2
+      - uses: actions/setup-node@v4
         with:
-          deno-version: v2.x
+          node-version: 22
+          cache: npm
 
-      - name: Check formatting
-        run: deno fmt --check
+      - run: npm ci
 
-      - name: Lint
-        run: deno lint
+      - name: Lint and check formatting
+        run: npm run lint
 
       - name: Check types
-        run: deno task check
+        run: npm run typecheck
 
       - name: Run tests
-        run: deno task test
+        run: npm test
 
       - name: Bundle worker
-        run: deno task build
+        run: npm run build
 
   deploy:
     name: Deploy to Cloudflare Workers
@@ -48,16 +48,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.x
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+
+      - run: npm ci
 
       - name: Deploy worker
-        run: deno task deploy
+        run: npm run deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

@@ -1,5 +1,6 @@
 import { Bot, type Context } from 'grammy';
 import type { BotFullInfo } from 'grammy/types';
+import { LibrarySearchAssistant, type TextGenerationRunner } from '@/ai/LibrarySearchAssistant.ts';
 import { helpMessage, welcomeMessage } from '@/bot/commands.ts';
 import { ingestionHandlers } from '@/bot/handlers/ingestion.ts';
 import { libraryHandlers } from '@/bot/handlers/library.ts';
@@ -10,7 +11,7 @@ import { RealDebridClient } from '@/realdebrid/RealDebridClient.ts';
 import { LibraryService } from '@/services/LibraryService.ts';
 import { TinfoilService } from '@/services/TinfoilService.ts';
 import { TorrentIngestionService } from '@/services/TorrentIngestionService.ts';
-import { type Sleep, sleep as realSleep } from '@/util/sleep.ts';
+import { sleep as realSleep, type Sleep } from '@/util/sleep.ts';
 
 /** Everything the handlers depend on, wired once in `buildDependencies` and replaceable in tests. */
 export interface BotDependencies {
@@ -27,6 +28,8 @@ export interface BotOptions {
 	/** Outbound HTTP used for Real-Debrid, Tinfoil and Telegram file downloads. */
 	fetch?: typeof fetch;
 	sleep?: Sleep;
+	/** Workers AI binding; without it (e.g. running locally) search has no AI fallback. */
+	ai?: TextGenerationRunner;
 	/** Bot identity; when given, the `getMe` call to Telegram is skipped. */
 	botInfo?: BotFullInfo;
 }
@@ -36,11 +39,12 @@ export function buildDependencies(config: AppConfig, options: BotOptions = {}): 
 	const fetchImpl: typeof fetch = options.fetch ?? ((input, init) => fetch(input, init));
 	const sleep = options.sleep ?? realSleep;
 	const realDebrid = new RealDebridClient({ token: config.realDebridToken, fetch: fetchImpl, sleep });
+	const assistant = options.ai ? new LibrarySearchAssistant(options.ai, config.aiSearchModel) : undefined;
 
 	return {
 		config,
 		realDebrid,
-		library: new LibraryService(realDebrid),
+		library: new LibraryService(realDebrid, assistant),
 		ingestion: new TorrentIngestionService(realDebrid, { sleep }),
 		tinfoil: new TinfoilService({ ...config.tinfoil, fetch: fetchImpl }),
 		fetch: fetchImpl,
@@ -51,7 +55,6 @@ export function buildDependencies(config: AppConfig, options: BotOptions = {}): 
 /**
  * Create the bot with every handler registered. Handlers are awaited end to end, so an update
  * is only considered handled (and its queue message acknowledged) after the work finishes.
- * On Workers this must run inside a handler, since network I/O is not allowed at module scope.
  * @param config - Application configuration
  * @param options - Overrides for outbound I/O and bot identity
  * @returns Initialized bot

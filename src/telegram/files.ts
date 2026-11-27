@@ -18,12 +18,7 @@ export interface TelegramDocument {
  * @returns File content
  * @throws UserFacingError when the file is too large or cannot be downloaded
  */
-export async function downloadTelegramFile(
-	api: Api,
-	botToken: string,
-	document: TelegramDocument,
-	fetchFile: typeof fetch = fetch,
-): Promise<ArrayBuffer> {
+export async function downloadTelegramFile(api: Api, botToken: string, document: TelegramDocument, fetchFile: typeof fetch = fetch): Promise<ArrayBuffer> {
 	if ((document.file_size ?? 0) > MAX_DOWNLOADABLE_BYTES) {
 		throw new UserFacingError('Arquivo grande demais: o Telegram só permite que bots baixem arquivos de até 20 MB.');
 	}

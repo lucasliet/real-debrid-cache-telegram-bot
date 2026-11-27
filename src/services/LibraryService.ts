@@ -1,3 +1,4 @@
+import { type LibrarySearchAssistant, MAX_CANDIDATES } from '@/ai/LibrarySearchAssistant.ts';
 import { SWITCH_ROM_EXTENSIONS } from '@/config/constants.ts';
 import type { RealDebridClient } from '@/realdebrid/RealDebridClient.ts';
 import type { Download, Torrent, UnrestrictedLink } from '@/realdebrid/types.ts';
@@ -7,6 +8,8 @@ import { UserFacingError } from '@/util/UserFacingError.ts';
 export interface SearchResult {
 	readonly torrents: Torrent[];
 	readonly downloads: Download[];
+	/** True when nothing matched literally and the entries were suggested by the AI assistant instead. */
+	readonly suggested: boolean;
 }
 
 export interface BulkDeleteResult {
@@ -35,12 +38,46 @@ function filterByName<T extends { filename: string }>(items: readonly T[], query
 
 /** Queries and bulk maintenance over the torrents and downloads already in the Real-Debrid account. */
 export class LibraryService {
-	constructor(private readonly realDebrid: RealDebridClient) {}
+	/**
+	 * @param realDebrid - API client
+	 * @param assistant - Optional AI fallback for searches without a literal match
+	 */
+	constructor(
+		private readonly realDebrid: RealDebridClient,
+		private readonly assistant?: LibrarySearchAssistant,
+	) {}
 
-	/** Find torrents and downloads whose name contains the query. */
+	/**
+	 * Find torrents and downloads whose name contains the query. When nothing matches and an assistant
+	 * is available, fall back to its suggestions; the fallback never fails the search.
+	 */
 	async search(query: string): Promise<SearchResult> {
 		const [torrents, downloads] = await Promise.all([this.realDebrid.listAllTorrents(), this.realDebrid.listAllDownloads()]);
-		return { torrents: filterByName(torrents, query), downloads: filterByName(downloads, query) };
+		const literal = { torrents: filterByName(torrents, query), downloads: filterByName(downloads, query), suggested: false };
+		if (literal.torrents.length > 0 || literal.downloads.length > 0 || !this.assistant) return literal;
+
+		try {
+			return await this.suggest(this.assistant, query, torrents, downloads);
+		} catch (error) {
+			console.error('[LIBRARY] AI search suggestion failed:', error);
+			return literal;
+		}
+	}
+
+	/** Ask the assistant to pick among the newest entries, torrents first. */
+	private async suggest(assistant: LibrarySearchAssistant, query: string, torrents: Torrent[], downloads: Download[]): Promise<SearchResult> {
+		const consideredTorrents = torrents.slice(0, MAX_CANDIDATES);
+		const consideredDownloads = downloads.slice(0, MAX_CANDIDATES - consideredTorrents.length);
+		const names = [...consideredTorrents, ...consideredDownloads].map((entry) => entry.filename);
+
+		const positions = await assistant.suggest(query, names);
+		return {
+			torrents: positions.filter((position) => position < consideredTorrents.length).map((position) => consideredTorrents[position]),
+			downloads: positions
+				.filter((position) => position >= consideredTorrents.length)
+				.map((position) => consideredDownloads[position - consideredTorrents.length]),
+			suggested: positions.length > 0,
+		};
 	}
 
 	/** List the torrents that have not finished downloading, whatever the reason. */

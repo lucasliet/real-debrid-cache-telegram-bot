@@ -1,6 +1,6 @@
 import { actionRow, bold, code, commandLink, escapeHtml, formatBytes, link } from '@/bot/views/html.ts';
-import type { BulkDeleteResult } from '@/services/LibraryService.ts';
 import type { ActiveTorrentCount, Download, Torrent, TorrentStatus, TranscodeLinks, UnrestrictedLink, User } from '@/realdebrid/types.ts';
+import type { BulkDeleteResult } from '@/services/LibraryService.ts';
 
 const STATUS_LABELS: Readonly<Record<TorrentStatus, string>> = {
 	magnet_error: '❌ erro no magnet',

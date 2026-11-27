@@ -53,7 +53,11 @@ export class RealDebridError extends Error {
 	 * @param code - Numeric `error_code` from the body, when present
 	 * @param apiMessage - Raw `error` string from the body, when present
 	 */
-	constructor(readonly status: number, readonly code?: number, readonly apiMessage?: string) {
+	constructor(
+		readonly status: number,
+		readonly code?: number,
+		readonly apiMessage?: string,
+	) {
 		super(RealDebridError.describe(status, code, apiMessage));
 		this.name = 'RealDebridError';
 	}

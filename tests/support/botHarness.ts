@@ -1,4 +1,5 @@
 import type { BotFullInfo, Update } from 'grammy/types';
+import type { TextGenerationRunner } from '@/ai/LibrarySearchAssistant.ts';
 import { createBot } from '@/bot/createBot.ts';
 import type { AppConfig } from '@/config/environment.ts';
 import { FakeRealDebrid } from './fakeRealDebrid.ts';
@@ -11,6 +12,7 @@ export const TEST_CONFIG: AppConfig = {
 	allowedUserId: OWNER_ID,
 	webhookUrl: 'https://bot.example/webhook',
 	tinfoil: { updateUrl: 'https://tinfoil.example/update', credentials: 'user:pass' },
+	aiSearchModel: '@cf/test/model',
 };
 
 export interface TelegramCall {
@@ -22,7 +24,7 @@ export interface TelegramCall {
  * Run the real bot against an in-memory Real-Debrid and a recorded Telegram API,
  * so tests exercise the whole path from an update to the messages the user sees.
  */
-export async function startBot(overrides: { config?: Partial<AppConfig>; externalFetch?: typeof fetch } = {}) {
+export async function startBot(overrides: { config?: Partial<AppConfig>; externalFetch?: typeof fetch; ai?: TextGenerationRunner } = {}) {
 	const realDebrid = new FakeRealDebrid();
 	const telegramCalls: TelegramCall[] = [];
 	const externalRequests: Request[] = [];
@@ -35,31 +37,35 @@ export async function startBot(overrides: { config?: Partial<AppConfig>; externa
 		return (overrides.externalFetch ?? (() => Promise.resolve(new Response('ok'))))(input, init);
 	};
 
-	const bot = await createBot({ ...TEST_CONFIG, ...overrides.config }, {
-		fetch: outboundFetch,
-		sleep: () => Promise.resolve(),
-		botInfo: {
-			id: 1,
-			is_bot: true,
-			first_name: 'Test',
-			username: 'test_bot',
-			can_join_groups: false,
-			can_read_all_group_messages: false,
-			supports_inline_queries: false,
-			can_connect_to_business: false,
-			has_main_web_app: false,
-			has_topics_enabled: false,
-			allows_users_to_create_topics: false,
-		} as BotFullInfo,
-	});
+	const bot = await createBot(
+		{ ...TEST_CONFIG, ...overrides.config },
+		{
+			fetch: outboundFetch,
+			ai: overrides.ai,
+			sleep: () => Promise.resolve(),
+			botInfo: {
+				id: 1,
+				is_bot: true,
+				first_name: 'Test',
+				username: 'test_bot',
+				can_join_groups: false,
+				can_read_all_group_messages: false,
+				supports_inline_queries: false,
+				can_connect_to_business: false,
+				has_main_web_app: false,
+				has_topics_enabled: false,
+				allows_users_to_create_topics: false,
+			} as BotFullInfo,
+		},
+	);
 
 	bot.api.config.use((_previous, method, payload) => {
 		telegramCalls.push({ method, payload: payload as Record<string, unknown> });
-		const result = method === 'getFile'
-			? { file_id: 'F1', file_unique_id: 'U1', file_path: 'documents/file.torrent' }
-			: { message_id: telegramCalls.length, date: 0, chat: { id: OWNER_ID, type: 'private' } };
-		// deno-lint-ignore no-explicit-any
-		return Promise.resolve({ ok: true, result } as any);
+		const result =
+			method === 'getFile'
+				? { file_id: 'F1', file_unique_id: 'U1', file_path: 'documents/file.torrent' }
+				: { message_id: telegramCalls.length, date: 0, chat: { id: OWNER_ID, type: 'private' } };
+		return Promise.resolve({ ok: true, result } as never);
 	});
 
 	const message = (fields: Record<string, unknown>, fromId = OWNER_ID): Update =>

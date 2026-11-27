@@ -1,22 +1,24 @@
+import process from 'node:process';
 import { createBot } from '@/bot/createBot.ts';
 import { loadConfig } from '@/config/environment.ts';
 import { registerWebhook } from '@/telegram/webhook.ts';
 
 /**
- * Local entrypoint: runs the bot in long-polling mode (which removes the webhook)
+ * Local entrypoint (Node.js): runs the bot in long-polling mode, which removes the webhook,
  * and restores the production webhook on exit. Production runs on Cloudflare Workers through `worker.ts`.
+ * There is no Workers AI binding here, so search works without the AI fallback.
  */
 async function startLocalBot(): Promise<void> {
-	const config = loadConfig();
+	const config = loadConfig(process.env);
 	const bot = await createBot(config);
 
 	const shutdown = async () => {
 		await bot.stop();
 		await registerWebhook(config);
-		Deno.exit();
+		process.exit();
 	};
-	Deno.addSignalListener('SIGINT', shutdown);
-	Deno.addSignalListener('SIGTERM', shutdown);
+	process.once('SIGINT', shutdown);
+	process.once('SIGTERM', shutdown);
 
 	await bot.start({ onStart: (botInfo) => console.log(`[BOT] @${botInfo.username} running in long-polling mode`) });
 }

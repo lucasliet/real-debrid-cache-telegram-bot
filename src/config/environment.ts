@@ -1,11 +1,12 @@
-import process from 'node:process';
-
 const DEFAULT_SERVER_URL = 'https://real-debrid-cache-bot.lucasliet.workers.dev/webhook';
 const DEFAULT_TINFOIL_UPDATE_URL = 'https://foil.lucasliet.com.br/update';
 
+/** Model used by Workers AI to suggest library entries; any text model with JSON mode works. */
+const DEFAULT_AI_SEARCH_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+
 /**
- * Runtime configuration, read from environment variables
- * (`.env` locally, `vars`/secrets exposed through `process.env` on Cloudflare Workers).
+ * Runtime configuration, read from the Worker's `env` (vars and secrets) in production
+ * and from `process.env` (`.env` file) when running locally.
  */
 export interface AppConfig {
 	/** Telegram bot token issued by @BotFather. */
@@ -18,6 +19,8 @@ export interface AppConfig {
 	readonly webhookUrl: string;
 	/** Tinfoil shop refresh endpoint and its `user:pass` credentials (optional integration). */
 	readonly tinfoil: { readonly updateUrl: string; readonly credentials?: string };
+	/** Workers AI model behind the search suggestions. */
+	readonly aiSearchModel: string;
 }
 
 /** Thrown when a required environment variable is missing or malformed. */
@@ -28,20 +31,27 @@ export class ConfigurationError extends Error {
 	}
 }
 
-function required(env: Record<string, string | undefined>, name: string): string {
-	const value = env[name]?.trim();
+/** Variables as exposed by the runtime; bindings that are not strings (queues, AI) are ignored. */
+export type EnvironmentSource = object;
+
+function optional(env: EnvironmentSource, name: string): string | undefined {
+	const value = (env as Record<string, unknown>)[name];
+	return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function required(env: EnvironmentSource, name: string): string {
+	const value = optional(env, name);
 	if (!value) throw new ConfigurationError(`Missing required environment variable ${name}`);
 	return value;
 }
 
 /**
- * Read and validate the configuration. Must be called inside a request/queue handler on Workers,
- * since bindings are not available at module scope.
- * @param env - Source of variables (defaults to `process.env`)
+ * Read and validate the configuration.
+ * @param env - Source of variables: the Worker's `env` or `process.env`
  * @returns Validated configuration
  * @throws ConfigurationError when a required variable is missing or malformed
  */
-export function loadConfig(env: Record<string, string | undefined> = process.env): AppConfig {
+export function loadConfig(env: EnvironmentSource): AppConfig {
 	const allowedUserId = Number(required(env, 'ALLOWED_USER_ID'));
 	if (!Number.isSafeInteger(allowedUserId) || allowedUserId <= 0) {
 		throw new ConfigurationError('ALLOWED_USER_ID must be a positive integer');
@@ -51,10 +61,11 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
 		botToken: required(env, 'BOT_TOKEN'),
 		realDebridToken: required(env, 'RD_TOKEN'),
 		allowedUserId,
-		webhookUrl: env.SERVER_URL?.trim() || DEFAULT_SERVER_URL,
+		webhookUrl: optional(env, 'SERVER_URL') ?? DEFAULT_SERVER_URL,
 		tinfoil: {
-			updateUrl: env.TINFOIL_UPDATE_URL?.trim() || DEFAULT_TINFOIL_UPDATE_URL,
-			credentials: env.TINFOIL_USER_PASS?.trim() || undefined,
+			updateUrl: optional(env, 'TINFOIL_UPDATE_URL') ?? DEFAULT_TINFOIL_UPDATE_URL,
+			credentials: optional(env, 'TINFOIL_USER_PASS'),
 		},
+		aiSearchModel: optional(env, 'AI_SEARCH_MODEL') ?? DEFAULT_AI_SEARCH_MODEL,
 	};
 }

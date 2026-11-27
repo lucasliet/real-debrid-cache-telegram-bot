@@ -2,7 +2,7 @@ import { Composer, type Context } from 'grammy';
 import type { BotDependencies } from '@/bot/createBot.ts';
 import { replySearch } from '@/bot/handlers/library.ts';
 import { describeError, editHtml, replyHtml } from '@/bot/messaging.ts';
-import { bundleSummary, individualSummary, IngestionProgressView } from '@/bot/views/ingestion.ts';
+import { bundleSummary, IngestionProgressView, individualSummary } from '@/bot/views/ingestion.ts';
 import type { TorrentSource } from '@/services/TorrentIngestionService.ts';
 import { downloadTelegramFile } from '@/telegram/files.ts';
 
@@ -32,7 +32,7 @@ export function ingestionHandlers(dependencies: BotDependencies): Composer<Conte
 	composer.on('message:document', async (ctx) => {
 		const document = ctx.message.document;
 		if (!document.file_name?.toLowerCase().endsWith('.torrent')) {
-			return void await ctx.reply('❌ Envie apenas arquivos .torrent ou links magnet. Use /ajuda para mais informações.');
+			return void (await ctx.reply('❌ Envie apenas arquivos .torrent ou links magnet. Use /ajuda para mais informações.'));
 		}
 		const bytes = await downloadTelegramFile(ctx.api, config.botToken, document, fetch);
 		await ingest(ctx, { kind: 'file', bytes });
@@ -42,7 +42,7 @@ export function ingestionHandlers(dependencies: BotDependencies): Composer<Conte
 		const text = ctx.message.text.trim();
 		const magnet = text.match(MAGNET_PATTERN)?.[0];
 		if (magnet) return await ingest(ctx, { kind: 'magnet', magnet });
-		if (text.startsWith('/')) return void await ctx.reply('❌ Comando desconhecido. Use /ajuda para ver os comandos disponíveis.');
+		if (text.startsWith('/')) return void (await ctx.reply('❌ Comando desconhecido. Use /ajuda para ver os comandos disponíveis.'));
 		await replySearch(ctx, text, dependencies);
 	});
 

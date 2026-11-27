@@ -1,5 +1,5 @@
 import type { BotFullInfo, Update } from 'grammy/types';
-import type { TextGenerationRunner } from '@/ai/LibrarySearchAssistant.ts';
+import type { DecisionModelRunner } from '@/ai/LibrarySearchAssistant.ts';
 import { createBot } from '@/bot/createBot.ts';
 import type { AppConfig } from '@/config/environment.ts';
 import { FakeRealDebrid } from './fakeRealDebrid.ts';
@@ -12,7 +12,7 @@ export const TEST_CONFIG: AppConfig = {
 	allowedUserId: OWNER_ID,
 	webhookUrl: 'https://bot.example/webhook',
 	tinfoil: { updateUrl: 'https://tinfoil.example/update', credentials: 'user:pass' },
-	aiSearchModel: '@cf/test/model',
+	aiSearch: { model: '@cf/cloudflare/clef', minProbability: 0.5 },
 };
 
 export interface TelegramCall {
@@ -24,7 +24,7 @@ export interface TelegramCall {
  * Run the real bot against an in-memory Real-Debrid and a recorded Telegram API,
  * so tests exercise the whole path from an update to the messages the user sees.
  */
-export async function startBot(overrides: { config?: Partial<AppConfig>; externalFetch?: typeof fetch; ai?: TextGenerationRunner } = {}) {
+export async function startBot(overrides: { config?: Partial<AppConfig>; externalFetch?: typeof fetch; ai?: DecisionModelRunner } = {}) {
 	const realDebrid = new FakeRealDebrid();
 	const telegramCalls: TelegramCall[] = [];
 	const externalRequests: Request[] = [];

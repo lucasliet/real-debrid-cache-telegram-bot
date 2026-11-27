@@ -1,6 +1,6 @@
 import type { Bot, Context } from 'grammy';
 import type { Update } from 'grammy/types';
-import type { TextGenerationRunner } from '@/ai/LibrarySearchAssistant.ts';
+import type { DecisionModelRunner } from '@/ai/LibrarySearchAssistant.ts';
 import { createBot } from '@/bot/createBot.ts';
 import { loadConfig } from '@/config/environment.ts';
 import { createWebhookApp } from '@/http/createWebhookApp.ts';
@@ -15,7 +15,7 @@ let bot: Promise<Bot<Context>> | undefined;
  */
 function loadBot(env: Env): Promise<Bot<Context>> {
 	bot ??= Promise.resolve()
-		.then(() => createBot(loadConfig(env), { ai: env.AI as unknown as TextGenerationRunner }))
+		.then(() => createBot(loadConfig(env), { ai: env.AI as unknown as DecisionModelRunner }))
 		.catch((error) => {
 			bot = undefined;
 			throw error;

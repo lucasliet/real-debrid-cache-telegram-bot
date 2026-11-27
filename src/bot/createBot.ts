@@ -1,7 +1,7 @@
 import { autoRetry } from '@grammyjs/auto-retry';
 import { Bot, type Context } from 'grammy';
 import type { BotFullInfo } from 'grammy/types';
-import { LibrarySearchAssistant, type TextGenerationRunner } from '@/ai/LibrarySearchAssistant.ts';
+import { type DecisionModelRunner, LibrarySearchAssistant } from '@/ai/LibrarySearchAssistant.ts';
 import { helpMessage, welcomeMessage } from '@/bot/commands.ts';
 import { ingestionHandlers } from '@/bot/handlers/ingestion.ts';
 import { libraryHandlers } from '@/bot/handlers/library.ts';
@@ -30,7 +30,7 @@ export interface BotOptions {
 	fetch?: typeof fetch;
 	sleep?: Sleep;
 	/** Workers AI binding; without it (e.g. running locally) search has no AI fallback. */
-	ai?: TextGenerationRunner;
+	ai?: DecisionModelRunner;
 	/** Bot identity; when given, the `getMe` call to Telegram is skipped. */
 	botInfo?: BotFullInfo;
 }
@@ -40,7 +40,7 @@ export function buildDependencies(config: AppConfig, options: BotOptions = {}): 
 	const fetchImpl: typeof fetch = options.fetch ?? ((input, init) => fetch(input, init));
 	const sleep = options.sleep ?? realSleep;
 	const realDebrid = new RealDebridClient({ token: config.realDebridToken, fetch: fetchImpl, sleep });
-	const assistant = options.ai ? new LibrarySearchAssistant(options.ai, config.aiSearchModel) : undefined;
+	const assistant = options.ai ? new LibrarySearchAssistant(options.ai, config.aiSearch) : undefined;
 
 	return {
 		config,

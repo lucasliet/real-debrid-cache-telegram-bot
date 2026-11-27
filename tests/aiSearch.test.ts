@@ -1,72 +1,120 @@
 import { assert, test } from 'vitest';
-import { LibrarySearchAssistant, MAX_CANDIDATES, type TextGenerationRunner } from '@/ai/LibrarySearchAssistant.ts';
+import { type DecisionModelRunner, LibrarySearchAssistant, MAX_CANDIDATES } from '@/ai/LibrarySearchAssistant.ts';
+import { ConfigurationError, loadConfig } from '@/config/environment.ts';
 import { startBot } from './support/botHarness.ts';
 import { rejects } from './support/rejects.ts';
 
-/** Workers AI stand-in that records what it was asked and answers with the scripted response. */
-function fakeAi(respond: (inputs: Record<string, unknown>) => unknown) {
-	const calls: { model: string; inputs: Record<string, unknown> }[] = [];
-	const ai: TextGenerationRunner = {
-		run: (model, inputs) => {
-			calls.push({ model, inputs });
-			return Promise.resolve().then(() => respond(inputs));
-		},
-	};
-	return { ai, calls, prompt: () => (calls[0].inputs.messages as { content: string }[])[1].content };
+interface Question {
+	type: string;
+	instructions: string;
 }
 
-test('asks for JSON output and offers the candidates as numbered data', async () => {
-	const { ai, calls, prompt } = fakeAi(() => ({ response: { matches: [1] } }));
+interface Call {
+	model: string;
+	inputs: { model: string; state: string; questions: Record<string, Question> };
+}
 
-	const positions = await new LibrarySearchAssistant(ai, '@cf/test/model').suggest('filme do nolan', ['Barbie.2023', 'Oppenheimer.2023\n1080p']);
+/**
+ * Decision model stand-in: answers every yes/no question with the probability `judge` gives to the entry
+ * named in its instructions, so tests exercise the numbering sent to the model and the mapping back together.
+ */
+function fakeDecisionModel(judge: (entry: string, state: string) => number) {
+	const calls: Call[] = [];
+	const ai: DecisionModelRunner = {
+		run: (model, inputs) => {
+			const call = { model, inputs } as Call;
+			calls.push(call);
+			const answers = Object.fromEntries(
+				Object.entries(call.inputs.questions).map(([id, question]) => {
+					const noul = judge(question.instructions.replace('Does the request refer to this entry? ', ''), call.inputs.state);
+					return [id, { type: 'noul', noul, confidence: noul }];
+				}),
+			);
+			return Promise.resolve({ model: 'clef', answers, usage: { total_input_tokens: 1, total_output_tokens: 0 } });
+		},
+	};
+	return { ai, calls };
+}
+
+const assistantFor = (ai: DecisionModelRunner, minProbability = 0.5) => new LibrarySearchAssistant(ai, { model: '@cf/cloudflare/clef', minProbability });
+
+test('asks one yes/no question per entry, following the decision model API', async () => {
+	const { ai, calls } = fakeDecisionModel((entry) => (entry.includes('Oppenheimer') ? 0.93 : 0.02));
+
+	const positions = await assistantFor(ai).suggest('filme do nolan', ['Barbie.2023', 'Oppenheimer.2023\n1080p']);
 
 	assert.deepStrictEqual(positions, [1]);
-	assert.strictEqual(calls[0].model, '@cf/test/model');
-	assert.deepStrictEqual((calls[0].inputs.response_format as { type: string }).type, 'json_schema');
-	assert.include(prompt(), 'Request: filme do nolan');
-	assert.include(prompt(), '0: Barbie.2023\n1: Oppenheimer.2023 1080p');
+	assert.strictEqual(calls.length, 1);
+	assert.strictEqual(calls[0].model, '@cf/cloudflare/clef');
+	assert.strictEqual(calls[0].inputs.model, 'clef');
+	assert.include(calls[0].inputs.state, 'Request: filme do nolan');
+	assert.deepStrictEqual(calls[0].inputs.questions, {
+		e0: { type: 'noul', instructions: 'Does the request refer to this entry? Barbie.2023' },
+		e1: { type: 'noul', instructions: 'Does the request refer to this entry? Oppenheimer.2023 1080p' },
+	});
 });
 
-test('accepts the answer as a JSON string too', async () => {
-	const { ai } = fakeAi(() => ({ response: '{"matches":[0]}' }));
-	assert.deepStrictEqual(await new LibrarySearchAssistant(ai, 'm').suggest('x', ['a']), [0]);
+test('suggests every entry at or above the threshold, most probable first, capped at ten', async () => {
+	const { ai } = fakeDecisionModel((entry) => Number(entry.split(' ')[1]) / 100);
+	const names = Array.from({ length: 30 }, (_, index) => `p ${40 + index * 2}`);
+
+	const positions = await assistantFor(ai).suggest('x', names);
+
+	assert.deepStrictEqual(positions, [29, 28, 27, 26, 25, 24, 23, 22, 21, 20]);
+	assert.deepStrictEqual(await assistantFor(ai, 0.97).suggest('x', names), [29]);
+	assert.deepStrictEqual(await assistantFor(ai, 0.99).suggest('x', names), []);
 });
 
-test('discards positions the model made up, repeated or beyond the limit', async () => {
-	const { ai } = fakeAi(() => ({ response: { matches: [2, 2, 99, -1, 1.5, '0', ...Array.from({ length: 30 }, (_, index) => index)] } }));
-	const names = Array.from({ length: 40 }, (_, index) => `name ${index}`);
+test('splits the candidates into requests of 64 questions and never exceeds the cap', async () => {
+	const { ai, calls } = fakeDecisionModel((entry) => (entry === `name ${MAX_CANDIDATES - 1}` ? 0.9 : 0));
+	const names = Array.from({ length: MAX_CANDIDATES + 50 }, (_, index) => `name ${index}`);
 
-	assert.deepStrictEqual(await new LibrarySearchAssistant(ai, 'm').suggest('x', names), [2, 0, 1, 3, 4, 5, 6, 7, 8, 9]);
-});
+	const positions = await assistantFor(ai).suggest('x', names);
 
-test('never offers more candidates than the cap and skips the model for an empty library', async () => {
-	const { ai, calls, prompt } = fakeAi(() => ({ response: { matches: [] } }));
-	const assistant = new LibrarySearchAssistant(ai, 'm');
-
-	assert.deepStrictEqual(await assistant.suggest('x', []), []);
-	assert.strictEqual(calls.length, 0);
-
-	await assistant.suggest(
-		'x',
-		Array.from({ length: MAX_CANDIDATES + 50 }, (_, index) => `name ${index}`),
+	assert.deepStrictEqual(positions, [MAX_CANDIDATES - 1]);
+	assert.deepStrictEqual(
+		calls.map((call) => Object.keys(call.inputs.questions).length),
+		[64, 64, 64],
 	);
-	assert.include(prompt(), `${MAX_CANDIDATES - 1}: name`);
-	assert.notInclude(prompt(), `${MAX_CANDIDATES}: name`);
+	const asked = calls.flatMap((call) => Object.values(call.inputs.questions).map((question) => question.instructions));
+	assert.strictEqual(
+		asked.some((instructions) => instructions.endsWith(`name ${MAX_CANDIDATES}`)),
+		false,
+	);
 });
 
-test('rejects answers outside the expected format', async () => {
-	const { ai } = fakeAi(() => ({ response: 'sorry, I cannot help' }));
-	await rejects(() => new LibrarySearchAssistant(ai, 'm').suggest('x', ['a']), Error);
+test('skips the model for an empty library', async () => {
+	const { ai, calls } = fakeDecisionModel(() => 1);
+	assert.deepStrictEqual(await assistantFor(ai).suggest('x', []), []);
+	assert.strictEqual(calls.length, 0);
+});
+
+test('keeps the answers of the requests that succeeded when another one fails', async () => {
+	const { ai: working } = fakeDecisionModel((entry) => (entry === 'name 70' ? 0.8 : 0));
+	let requests = 0;
+	const flaky: DecisionModelRunner = {
+		run: (model, inputs) => (++requests === 1 ? Promise.reject(new Error('3040: out of capacity')) : working.run(model, inputs)),
+	};
+	const names = Array.from({ length: 100 }, (_, index) => `name ${index}`);
+
+	assert.deepStrictEqual(await assistantFor(flaky).suggest('x', names), [70]);
+});
+
+test('rejects when no request succeeds or the answer has an unexpected shape', async () => {
+	const down: DecisionModelRunner = { run: () => Promise.reject(new Error('model unavailable')) };
+	const garbled: DecisionModelRunner = { run: () => Promise.resolve({ response: 'sorry' }) };
+
+	await rejects(() => assistantFor(down).suggest('x', ['a']), Error, 'model unavailable');
+	await rejects(() => assistantFor(garbled).suggest('x', ['a']), Error, 'answers');
+});
+
+test('ignores answers that are missing or not a probability', async () => {
+	const partial: DecisionModelRunner = { run: () => Promise.resolve({ answers: { e0: { noul: 'yes' }, e2: { noul: 0.9 } } }) };
+	assert.deepStrictEqual(await assistantFor(partial).suggest('x', ['a', 'b', 'c']), [2]);
 });
 
 test('suggests entries through the AI only when the literal search finds nothing', async () => {
-	// The answer is derived from the numbered list the model receives, so the numbering and the
-	// mapping back to torrents and downloads are verified together.
-	const { ai, calls } = fakeAi((inputs) => {
-		const prompt = (inputs.messages as { content: string }[])[1].content;
-		const matches = [...prompt.matchAll(/^(\d+): .*Oppenheimer/gm)].map(([, position]) => Number(position));
-		return { response: { matches: matches.reverse() } };
-	});
+	const { ai, calls } = fakeDecisionModel((entry, state) => (state.includes('nolan') && entry.includes('Oppenheimer') ? 0.9 : 0.01));
 	const bot = await startBot({ ai });
 	bot.realDebrid.seedTorrent({ id: 'A', filename: 'Oppenheimer.2023.2160p.UHD.BluRay.x265' });
 	bot.realDebrid.seedTorrent({ id: 'B', filename: 'Barbie.2023.1080p' });
@@ -84,9 +132,23 @@ test('suggests entries through the AI only when the literal search finds nothing
 	assert.include(downloads, 'Oppenheimer.OST.flac');
 });
 
+test('maps suggestions correctly when torrents alone fill the candidate list', async () => {
+	const { ai, calls } = fakeDecisionModel((entry) => (entry === `Torrent.${MAX_CANDIDATES - 1}` ? 0.9 : 0));
+	const bot = await startBot({ ai });
+	for (let index = 0; index < MAX_CANDIDATES + 5; index++) bot.realDebrid.seedTorrent({ id: `T${index}`, filename: `Torrent.${index}` });
+	bot.realDebrid.seedDownload({ id: 'D1', filename: 'Download.left.out' });
+
+	await bot.sendText('uma descrição qualquer');
+
+	assert.notInclude(JSON.stringify(calls), 'Download.left.out');
+	assert.include(bot.texts()[1], `Torrent.${MAX_CANDIDATES - 1}`);
+	assert.strictEqual(bot.texts().length, 2);
+});
+
 test('falls back to "no results" when the AI fails or finds nothing', async () => {
-	for (const respond of [() => ({ response: { matches: [] } }), () => Promise.reject(new Error('model unavailable'))]) {
-		const bot = await startBot({ ai: fakeAi(respond).ai });
+	const unavailable: DecisionModelRunner = { run: () => Promise.reject(new Error('model unavailable')) };
+	for (const ai of [fakeDecisionModel(() => 0.1).ai, unavailable]) {
+		const bot = await startBot({ ai });
 		bot.realDebrid.seedTorrent({ id: 'A', filename: 'Barbie.2023' });
 
 		await bot.sendText('duna');
@@ -95,20 +157,8 @@ test('falls back to "no results" when the AI fails or finds nothing', async () =
 	}
 });
 
-test('maps suggestions correctly when torrents alone fill the candidate list', async () => {
-	const { ai, prompt } = fakeAi(() => ({ response: { matches: [MAX_CANDIDATES - 1] } }));
-	const bot = await startBot({ ai });
-	for (let index = 0; index < MAX_CANDIDATES + 5; index++) bot.realDebrid.seedTorrent({ id: `T${index}`, filename: `Torrent.${index}` });
-	bot.realDebrid.seedDownload({ id: 'D1', filename: 'Download.left.out' });
-
-	await bot.sendText('uma descrição qualquer');
-
-	assert.notInclude(prompt(), 'Download.left.out');
-	assert.include(bot.texts()[1], `Torrent.${MAX_CANDIDATES - 1}`);
-});
-
 test('does not spend an AI call on greetings or pasted links', async () => {
-	const { ai, calls } = fakeAi(() => ({ response: { matches: [0] } }));
+	const { ai, calls } = fakeDecisionModel(() => 1);
 	const bot = await startBot({ ai });
 	bot.realDebrid.seedTorrent({ id: 'A', filename: 'Barbie.2023' });
 
@@ -125,4 +175,15 @@ test('works without an AI binding', async () => {
 	await bot.sendText('duna');
 
 	assert.deepStrictEqual(bot.texts(), ['❌ Nenhum resultado para "duna".']);
+});
+
+test('reads the model and the threshold from the configuration', () => {
+	const required = { BOT_TOKEN: 'b', RD_TOKEN: 'r', ALLOWED_USER_ID: '42' };
+
+	assert.deepStrictEqual(loadConfig(required).aiSearch, { model: '@cf/cloudflare/clef', minProbability: 0.5 });
+	assert.deepStrictEqual(loadConfig({ ...required, AI_SEARCH_MODEL: '@cf/cloudflare/clef-flash', AI_SEARCH_MIN_PROBABILITY: '0.7' }).aiSearch, {
+		model: '@cf/cloudflare/clef-flash',
+		minProbability: 0.7,
+	});
+	assert.throws(() => loadConfig({ ...required, AI_SEARCH_MIN_PROBABILITY: '70' }), ConfigurationError);
 });

@@ -1,8 +1,9 @@
 const DEFAULT_SERVER_URL = 'https://real-debrid-cache-bot.lucasliet.workers.dev/webhook';
 const DEFAULT_TINFOIL_UPDATE_URL = 'https://foil.lucasliet.com.br/update';
 
-/** Model used by Workers AI to suggest library entries; any text model with JSON mode works. */
-const DEFAULT_AI_SEARCH_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+/** Decision model used by Workers AI to suggest library entries; `@cf/cloudflare/clef-flash` is a cheaper, smaller alternative. */
+const DEFAULT_AI_SEARCH_MODEL = '@cf/cloudflare/clef';
+const DEFAULT_AI_SEARCH_MIN_PROBABILITY = 0.5;
 
 /**
  * Runtime configuration, read from the Worker's `env` (vars and secrets) in production
@@ -19,8 +20,8 @@ export interface AppConfig {
 	readonly webhookUrl: string;
 	/** Tinfoil shop refresh endpoint and its `user:pass` credentials (optional integration). */
 	readonly tinfoil: { readonly updateUrl: string; readonly credentials?: string };
-	/** Workers AI model behind the search suggestions. */
-	readonly aiSearchModel: string;
+	/** Workers AI decision model behind the search suggestions, and the probability from which an entry is suggested. */
+	readonly aiSearch: { readonly model: string; readonly minProbability: number };
 }
 
 /** Thrown when a required environment variable is missing or malformed. */
@@ -45,6 +46,13 @@ function required(env: EnvironmentSource, name: string): string {
 	return value;
 }
 
+function probability(value: string | undefined): number | undefined {
+	if (value === undefined) return undefined;
+	const parsed = Number(value);
+	if (!(parsed > 0 && parsed <= 1)) throw new ConfigurationError('AI_SEARCH_MIN_PROBABILITY must be a number between 0 (exclusive) and 1');
+	return parsed;
+}
+
 /**
  * Read and validate the configuration.
  * @param env - Source of variables: the Worker's `env` or `process.env`
@@ -66,6 +74,9 @@ export function loadConfig(env: EnvironmentSource): AppConfig {
 			updateUrl: optional(env, 'TINFOIL_UPDATE_URL') ?? DEFAULT_TINFOIL_UPDATE_URL,
 			credentials: optional(env, 'TINFOIL_USER_PASS'),
 		},
-		aiSearchModel: optional(env, 'AI_SEARCH_MODEL') ?? DEFAULT_AI_SEARCH_MODEL,
+		aiSearch: {
+			model: optional(env, 'AI_SEARCH_MODEL') ?? DEFAULT_AI_SEARCH_MODEL,
+			minProbability: probability(optional(env, 'AI_SEARCH_MIN_PROBABILITY')) ?? DEFAULT_AI_SEARCH_MIN_PROBABILITY,
+		},
 	};
 }

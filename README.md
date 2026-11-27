@@ -79,27 +79,20 @@ testar o fluxo completo — do update recebido às mensagens enviadas — sem re
 
 ### Busca com Workers AI
 
-A busca continua literal e determinística. Só quando ela não encontra nada o bot envia ao modelo a consulta e os nomes dos 200 itens mais recentes da
-biblioteca, pedindo em JSON os números dos itens que correspondem. A resposta é tratada como entrada não confiável: só posições válidas são aceitas, no
-máximo 10, e o resultado é apresentado como sugestão. Se o modelo falhar, a resposta é a mesma de uma busca sem resultados.
+A busca continua literal e determinística. Só quando ela não encontra nada o bot consulta o [Clef](https://developers.cloudflare.com/workers-ai/models/clef/),
+um modelo de decisão: em vez de gerar texto, ele responde perguntas tipadas com probabilidades. Cada um dos 192 itens mais recentes da biblioteca vira uma
+pergunta sim/não ("a consulta se refere a este item?"), em até 3 requisições de 64 perguntas, e são sugeridos os itens com probabilidade igual ou acima do
+limiar, no máximo 10, do mais provável para o menos.
 
+- Não há texto livre para interpretar: vários itens podem corresponder ao mesmo tempo e "nada corresponde" é simplesmente nenhuma probabilidade acima do limiar
 - A IA nunca participa de operações destrutivas: `/clean_by` e `/clean_nsw` usam apenas correspondência literal
 - Os nomes dos arquivos são enviados ao Workers AI, na sua própria conta Cloudflare
-- O modelo padrão é `@cf/meta/llama-3.3-70b-instruct-fp8-fast`, configurável por `AI_SEARCH_MODEL`; o uso é cobrado conforme o plano do Workers AI
+- O limiar padrão é 0,5 (`AI_SEARCH_MIN_PROBABILITY`); cada busca registra no log quantos itens foram sugeridos e a maior probabilidade, para calibrá-lo
+- O modelo é configurável por `AI_SEARCH_MODEL` entre os da família Clef (`@cf/cloudflare/clef`, `@cf/cloudflare/clef-flash`); o uso consome a cota diária
+  de 10.000 neurons do Workers AI, compartilhada por toda a conta
 - Consultas muito curtas ou que são só um link não são enviadas ao modelo
+- Se o modelo falhar, a resposta é a mesma de uma busca sem resultados
 - Rodando localmente em long polling não há binding de IA e a busca funciona sem as sugestões
-
-### Integração com a API do Real-Debrid
-
-Implementada conforme a [documentação pública](https://api.real-debrid.com/) da API REST v1.0:
-
-- **Paginação**: listagens usam `page`/`limit` e o cabeçalho `X-Total-Count`; buscas e limpezas percorrem todas as páginas, não só os 100 primeiros itens
-- **Listagem vazia**: a API responde `204` sem corpo, tratado como lista vazia
-- **Rate limit**: a API aceita 250 requisições por minuto e as recusadas também contam; o cliente espaça as chamadas (250 ms) e repete as que voltarem
-  `429` com backoff exponencial
-- **Erros**: o `error_code` numérico é traduzido para mensagens em português
-- **Parâmetros**: enviados como `application/x-www-form-urlencoded`; arquivos `.torrent` vão como corpo bruto do `PUT /torrents/addTorrent`
-- O endpoint `/torrents/instantAvailability` foi desativado pelo Real-Debrid e não é usado
 
 ## Configuração
 
@@ -121,7 +114,8 @@ Copie `.env.example` para `.env` e preencha:
 | `SERVER_URL` | não | URL pública do webhook (definida em `wrangler.jsonc`) |
 | `TINFOIL_USER_PASS` | não | Credenciais `usuario:senha` da loja Tinfoil; sem elas `/update_tinfoil` fica desativado |
 | `TINFOIL_UPDATE_URL` | não | Endpoint de atualização da loja Tinfoil |
-| `AI_SEARCH_MODEL` | não | Modelo do Workers AI usado nas sugestões de busca |
+| `AI_SEARCH_MODEL` | não | Modelo de decisão do Workers AI usado nas sugestões de busca (padrão `@cf/cloudflare/clef`) |
+| `AI_SEARCH_MIN_PROBABILITY` | não | Probabilidade mínima, de 0 a 1, para um item ser sugerido (padrão `0.5`) |
 
 O bot se recusa a iniciar se uma variável obrigatória estiver ausente ou inválida.
 

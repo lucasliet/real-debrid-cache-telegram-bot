@@ -5,23 +5,21 @@ import { createBot } from '@/bot/createBot.ts';
 import { loadConfig } from '@/config/environment.ts';
 import { createWebhookApp } from '@/http/createWebhookApp.ts';
 import { processQueuedUpdate } from '@/queue.ts';
+import { SingleValueCache } from '@/util/singleValueCache.ts';
 
-let bot: Promise<Bot<Context>> | undefined;
+const bots = new SingleValueCache<Bot<Context>>();
 
 /**
- * Create the bot once per isolate. A failed initialization (invalid configuration, Telegram unreachable)
- * is not cached, so the next batch retries it.
+ * Reuse the bot across invocations of the same isolate, but only while the configuration is the same:
+ * an isolate can outlive a change of variables or secrets, and the bot captures them when it is created
+ * (notably who is allowed to use it). A failed initialization is not cached, so the next batch retries it.
  * @param env - Worker bindings
  * @returns The initialized bot
+ * @throws ConfigurationError when a required variable is missing or malformed
  */
 function loadBot(env: Env): Promise<Bot<Context>> {
-	bot ??= Promise.resolve()
-		.then(() => createBot(loadConfig(env), { ai: env.AI as unknown as DecisionModelRunner }))
-		.catch((error) => {
-			bot = undefined;
-			throw error;
-		});
-	return bot;
+	const config = loadConfig(env);
+	return bots.get(JSON.stringify(config), () => createBot(config, { ai: env.AI as unknown as DecisionModelRunner }));
 }
 
 /**

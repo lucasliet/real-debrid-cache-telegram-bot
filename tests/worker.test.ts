@@ -2,7 +2,9 @@ import type { Update } from 'grammy/types';
 import { assert, test } from 'vitest';
 import { processQueuedUpdate } from '@/queue.ts';
 import { deriveWebhookSecret, WEBHOOK_SECRET_HEADER } from '@/telegram/webhookSecret.ts';
+import { SingleValueCache } from '@/util/singleValueCache.ts';
 import worker from '@/worker.ts';
+import { rejects } from './support/rejects.ts';
 
 const SECRETS = { BOT_TOKEN: '123:worker-test', RD_TOKEN: 'rd', ALLOWED_USER_ID: '1000' };
 
@@ -66,4 +68,25 @@ test('swallows a failing update instead of letting the queue retry it', async ()
 	await processQueuedUpdate({ handleUpdate: () => Promise.reject(new Error('boom')) }, message);
 
 	assert.deepStrictEqual(log, ['ack']);
+});
+
+test('rebuilds the cached value when its key changes, so a bot never outlives its configuration', async () => {
+	const cache = new SingleValueCache<string>();
+	const built: string[] = [];
+	const build = (name: string) => () => {
+		built.push(name);
+		return Promise.resolve(name);
+	};
+
+	assert.strictEqual(await cache.get('allowed=42', build('first')), 'first');
+	assert.strictEqual(await cache.get('allowed=42', build('unused')), 'first');
+	assert.strictEqual(await cache.get('allowed=84', build('second')), 'second');
+	assert.deepStrictEqual(built, ['first', 'second']);
+});
+
+test('does not cache a failed build', async () => {
+	const cache = new SingleValueCache<string>();
+
+	await rejects(() => cache.get('k', () => Promise.reject(new Error('telegram unreachable'))), Error, 'telegram unreachable');
+	assert.strictEqual(await cache.get('k', () => Promise.resolve('recovered')), 'recovered');
 });

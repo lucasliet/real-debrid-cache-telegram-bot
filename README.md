@@ -112,7 +112,7 @@ Copie `.env.example` para `.env` e preencha:
 | `BOT_TOKEN` | sim | Token do bot do Telegram |
 | `RD_TOKEN` | sim | Token privado da API do Real-Debrid |
 | `ALLOWED_USER_ID` | sim | ID numérico do único usuário autorizado |
-| `SERVER_URL` | não | URL pública do webhook (definida em `wrangler.jsonc`) |
+| `SERVER_URL` | não | URL pública do webhook; no Worker vem de `wrangler.jsonc`, localmente precisa estar no `.env` com o mesmo valor |
 | `TINFOIL_USER_PASS` | não | Credenciais `usuario:senha` da loja Tinfoil; sem elas `/update_tinfoil` fica desativado |
 | `TINFOIL_UPDATE_URL` | não | Endpoint de atualização da loja Tinfoil |
 | `AI_SEARCH_MODEL` | não | Modelo de decisão do Workers AI usado nas sugestões de busca (padrão `@cf/cloudflare/clef`) |
@@ -172,7 +172,8 @@ Depois do primeiro deploy, acesse `https://real-debrid-cache-bot.<sua-conta>.wor
 Telegram (a operação é idempotente). É também assim que os updates voltam para o deploy depois de rodar o bot localmente. O mesmo registro pode ser
 feito pela linha de comando, com `npm run webhook`.
 
-- `SERVER_URL` vem de `vars` em `wrangler.jsonc`; ajuste para o domínio do seu Worker
+- `SERVER_URL` vem de `vars` em `wrangler.jsonc`; ajuste para o domínio do seu Worker **e defina o mesmo valor no `.env`**. `npm run dev` (ao encerrar)
+  e `npm run webhook` leem só o `.env`: sem `SERVER_URL` nele, registrariam o webhook no endereço padrão do projeto, não no seu Worker
 - `static/` é publicado como static assets (ex.: `/robots.txt`)
 - No plano gratuito do Workers cada execução faz no máximo 50 subrequests: adicionar um pacote com mais de ~10 ROMs ou rodar `/clean_nsw` numa biblioteca
   com mais de ~40 torrents excede esse limite e é interrompido no meio. O plano pago (10.000 por execução) comporta todos os comandos

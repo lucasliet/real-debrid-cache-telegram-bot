@@ -1,52 +1,28 @@
 import { Composer, type Context } from 'grammy';
 import type { BotDependencies } from '@/bot/createBot.ts';
+import { listingNavigation, replyListing } from '@/bot/handlers/listings.ts';
 import { describeError, replyBlocks, replyHtml } from '@/bot/messaging.ts';
 import { requireArgument } from '@/bot/middleware.ts';
 import { bold, escapeHtml, truncate } from '@/bot/views/html.ts';
 import { accountSummary, bulkDeleteSummary, downloadCard, streamBlocks, torrentCard, unrestrictedLinkCard } from '@/bot/views/library.ts';
-import { LISTING_PAGE_SIZE } from '@/config/constants.ts';
 
 /** A pasted text can be as long as a whole message; echoing it in full would not fit the reply. */
 const MAX_ECHOED_QUERY_LENGTH = 100;
 
-/**
- * Header for a listing, telling the user when it was truncated.
- * @param title - Listing title
- * @param shown - Entries included in the reply
- * @param total - Entries that exist
- */
-function listingHeader(title: string, shown: number, total: number): string {
-	const header = bold(`${title} (${total})`);
-	return shown < total ? `${header}\nMostrando ${shown} de ${total}. Envie parte do nome para buscar um item específico.` : header;
-}
-
 /** Commands that read and maintain what is already in the Real-Debrid account. */
-export function libraryHandlers({ realDebrid, library, sleep }: BotDependencies): Composer<Context> {
+export function libraryHandlers(dependencies: BotDependencies): Composer<Context> {
+	const { realDebrid, library, sleep } = dependencies;
 	const composer = new Composer<Context>();
+	composer.use(listingNavigation(dependencies));
 
 	composer.command('conta', async (ctx) => {
 		const [user, activeTorrents] = await Promise.all([realDebrid.getUser(), realDebrid.getActiveTorrentCount()]);
 		await replyHtml(ctx, accountSummary(user, activeTorrents));
 	});
 
-	composer.command('status_torrent', async (ctx) => {
-		const { items, total } = await realDebrid.listTorrents(1, LISTING_PAGE_SIZE);
-		if (items.length === 0) return void (await ctx.reply('❌ Nenhum torrent encontrado.'));
-		await replyBlocks(ctx, [listingHeader('📥 Torrents', items.length, total), ...items.map(torrentCard)], sleep);
-	});
-
-	composer.command('status_download', async (ctx) => {
-		const { items, total } = await realDebrid.listDownloads(1, LISTING_PAGE_SIZE);
-		if (items.length === 0) return void (await ctx.reply('❌ Nenhum download encontrado.'));
-		await replyBlocks(ctx, [listingHeader('📦 Downloads', items.length, total), ...items.map(downloadCard)], sleep);
-	});
-
-	composer.command('incomplete', async (ctx) => {
-		const torrents = await library.listIncompleteTorrents();
-		if (torrents.length === 0) return void (await ctx.reply('✅ Nenhum torrent incompleto.'));
-		const shown = torrents.slice(0, LISTING_PAGE_SIZE);
-		await replyBlocks(ctx, [listingHeader('⏳ Torrents incompletos', shown.length, torrents.length), ...shown.map(torrentCard)], sleep);
-	});
+	composer.command('status_torrent', (ctx) => replyListing(ctx, dependencies, 't'));
+	composer.command('status_download', (ctx) => replyListing(ctx, dependencies, 'd'));
+	composer.command('incomplete', (ctx) => replyListing(ctx, dependencies, 'i'));
 
 	composer.command('download', async (ctx) => {
 		const links = await library.getDownloadLinks(requireArgument(ctx, '/download 12345'));
@@ -92,23 +68,27 @@ export function libraryHandlers({ realDebrid, library, sleep }: BotDependencies)
 }
 
 /**
- * Search torrents and downloads by name and reply with the matches.
+ * Search torrents and downloads by name and reply with the matches: literal matches as listings the user
+ * can page through, AI suggestions (a handful at most) as plain cards.
  * @param ctx - Context of the message carrying the query
  * @param query - Text typed by the user
  */
-export async function replySearch(ctx: Context, query: string, { library, sleep }: BotDependencies): Promise<void> {
+export async function replySearch(ctx: Context, query: string, dependencies: BotDependencies): Promise<void> {
+	const { library, sleep } = dependencies;
 	const { torrents, downloads, suggested } = await library.search(query);
 	if (torrents.length === 0 && downloads.length === 0) {
 		return void (await replyHtml(ctx, `❌ Nenhum resultado para "${escapeHtml(truncate(query, MAX_ECHOED_QUERY_LENGTH))}".`));
 	}
-	if (suggested) await replyHtml(ctx, `🤖 Nenhum nome contém "${escapeHtml(truncate(query, MAX_ECHOED_QUERY_LENGTH))}". Estas são sugestões da IA:`);
 
-	if (torrents.length > 0) {
-		const shown = torrents.slice(0, LISTING_PAGE_SIZE);
-		await replyBlocks(ctx, [listingHeader('📥 Torrents encontrados', shown.length, torrents.length), ...shown.map(torrentCard)], sleep);
+	if (suggested) {
+		await replyHtml(ctx, `🤖 Nenhum nome contém "${escapeHtml(truncate(query, MAX_ECHOED_QUERY_LENGTH))}". Estas são sugestões da IA:`);
+		if (torrents.length > 0)
+			await replyBlocks(ctx, [bold(`📥 Torrents sugeridos (${torrents.length})`), ...torrents.map((torrent) => torrentCard(torrent))], sleep);
+		if (downloads.length > 0)
+			await replyBlocks(ctx, [bold(`📦 Downloads sugeridos (${downloads.length})`), ...downloads.map((download) => downloadCard(download))], sleep);
+		return;
 	}
-	if (downloads.length > 0) {
-		const shown = downloads.slice(0, LISTING_PAGE_SIZE);
-		await replyBlocks(ctx, [listingHeader('📦 Downloads encontrados', shown.length, downloads.length), ...shown.map(downloadCard)], sleep);
-	}
+
+	if (torrents.length > 0) await replyListing(ctx, dependencies, 'st', query);
+	if (downloads.length > 0) await replyListing(ctx, dependencies, 'sd', query);
 }

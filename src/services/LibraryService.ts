@@ -107,6 +107,16 @@ export class LibraryService {
 		};
 	}
 
+	/** Torrents whose name contains the query (literal match only). */
+	async findTorrents(query: string): Promise<Torrent[]> {
+		return filterByName(await this.realDebrid.listAllTorrents(), query);
+	}
+
+	/** Downloads whose name contains the query (literal match only). */
+	async findDownloads(query: string): Promise<Download[]> {
+		return filterByName(await this.realDebrid.listAllDownloads(), query);
+	}
+
 	/** List the torrents that have not finished downloading, whatever the reason. */
 	async listIncompleteTorrents(): Promise<Torrent[]> {
 		const torrents = await this.realDebrid.listAllTorrents();

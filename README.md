@@ -13,6 +13,7 @@ por arquivo**, cada cópia com um único arquivo selecionado. Assim o Real-Debri
 - Aguarda a conversão do magnet em vez de assumir um tempo fixo, e remove do Real-Debrid os torrents que falharem no meio do processo
 - Progresso em tempo real numa única mensagem, com resumo das falhas por arquivo
 - Busca por nome em torrents e downloads, ignorando acentos, maiúsculas e separadores (`.`, `_`, `-`)
+- Listagens e resultados de busca paginados numa única mensagem, com botões de navegação (⏮ ◀️ ▶️ ⏭)
 - Quando a busca literal não encontra nada, o [Workers AI](https://developers.cloudflare.com/workers-ai/) sugere itens da biblioteca a partir da descrição
   (ex.: "aquele filme do Nolan sobre a bomba")
 - Links diretos (`/download`, `/unrestrict`) e de streaming (`/stream`)
@@ -26,8 +27,8 @@ por arquivo**, cada cópia com um único arquivo selecionado. Assim o Real-Debri
 | --- | --- |
 | `/ajuda` | Mostra as instruções de uso |
 | `/conta` | Mostra plano, validade e torrents ativos da conta |
-| `/status_torrent` | Lista os 50 torrents mais recentes |
-| `/status_download` | Lista os 50 downloads mais recentes |
+| `/status_torrent` | Lista todos os torrents, 10 por página |
+| `/status_download` | Lista todos os downloads, 10 por página |
 | `/incomplete` | Lista os torrents que ainda não terminaram |
 | `/download <id>` | Gera os links diretos de um torrent baixado |
 | `/stream <id>` | Mostra os links de streaming de um download |

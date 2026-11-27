@@ -13,7 +13,8 @@ import { deriveWebhookSecret } from '@/telegram/webhookSecret.ts';
 export async function registerWebhook(config: AppConfig, api: Api = new Api(config.botToken)): Promise<void> {
 	await api.setWebhook(config.webhookUrl, {
 		secret_token: await deriveWebhookSecret(config.botToken),
-		allowed_updates: ['message'],
+		// callback_query carries the taps on the pagination buttons of the listings
+		allowed_updates: ['message', 'callback_query'],
 	});
 	await api.setMyCommands(commandMenu());
 	console.log(`[WEBHOOK] Registered ${config.webhookUrl}`);

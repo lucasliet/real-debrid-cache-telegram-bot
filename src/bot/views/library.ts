@@ -23,7 +23,19 @@ const STREAM_FORMATS: readonly { key: keyof TranscodeLinks; label: string }[] = 
 	{ key: 'h264WebM', label: '🎬 WebM' },
 ];
 
-export function torrentCard(torrent: Torrent): string {
+/** Longest name shown on a card of a compact page. */
+const COMPACT_NAME_LENGTH = 60;
+
+export interface CardOptions {
+	/** Shorten the name, for pages whose full names would not fit one message. */
+	compact?: boolean;
+}
+
+function cardName(name: string, options: CardOptions): string {
+	return escapeHtml(options.compact ? truncate(name, COMPACT_NAME_LENGTH) : name);
+}
+
+export function torrentCard(torrent: Torrent, options: CardOptions = {}): string {
 	const progress = [`${bold('📊 Status:')} ${STATUS_LABELS[torrent.status] ?? escapeHtml(torrent.status)}`, `${bold('📈 Progresso:')} ${torrent.progress}%`];
 	if (torrent.speed) progress.push(`${bold('⚡ Velocidade:')} ${formatBytes(torrent.speed)}/s`);
 	if (torrent.seeders !== undefined) progress.push(`${bold('🌱 Seeders:')} ${torrent.seeders}`);
@@ -33,20 +45,20 @@ export function torrentCard(torrent: Torrent): string {
 
 	return [
 		`${bold('🆔 ID:')} ${code(torrent.id)}`,
-		`${bold('📂 Nome:')} ${escapeHtml(torrent.filename)}`,
+		`${bold('📂 Nome:')} ${cardName(torrent.filename, options)}`,
 		`${bold('💾 Tamanho:')} ${formatBytes(torrent.bytes)}`,
 		...progress,
 		actionRow(...actions),
 	].join('\n');
 }
 
-export function downloadCard(download: Download): string {
+export function downloadCard(download: Download, options: CardOptions = {}): string {
 	const actions = [commandLink('🗑️ Deletar', `/delete_download ${download.id}`), link('   ⬇️ Baixar   ', download.download)];
 	if (download.streamable === 1) actions.push(commandLink('🎥 Stream', `/stream ${download.id}`));
 
 	return [
 		`${bold('🆔 ID:')} ${code(download.id)}`,
-		`${bold('📂 Nome:')} ${escapeHtml(download.filename)}`,
+		`${bold('📂 Nome:')} ${cardName(download.filename, options)}`,
 		`${bold('💾 Tamanho:')} ${formatBytes(download.filesize)}`,
 		actionRow(...actions),
 	].join('\n');

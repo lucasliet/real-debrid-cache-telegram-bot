@@ -36,19 +36,100 @@ test('lists torrents as valid HTML even when names carry markup characters', asy
 	assert.deepStrictEqual(bot.telegramCalls[0].payload.parse_mode, 'HTML');
 });
 
-test('truncates long listings, reporting the total and splitting messages between entries', async () => {
+test('pages through every torrent with navigation buttons that edit the same message', async () => {
 	const bot = await startBot();
-	for (let index = 0; index < 120; index++) bot.realDebrid.seedTorrent({ id: `ID${index}`, filename: `Torrent number ${index}` });
+	for (let index = 0; index < 25; index++) bot.realDebrid.seedTorrent({ id: `ID${index}`, filename: `Torrent number ${index}` });
 
 	await bot.sendText('/status_torrent');
 
-	const messages = bot.texts();
-	assert.include(messages[0], 'Mostrando 50 de 120');
-	assert.deepStrictEqual(messages.length > 1, true);
-	for (const message of messages) {
-		assert.deepStrictEqual(message.length <= 4096, true);
-		assert.deepStrictEqual(message.split('<a ').length, message.split('</a>').length, 'no entry may be cut in half');
-	}
+	assert.include(bot.texts()[0], 'Torrents (25)');
+	assert.include(bot.texts()[0], 'Página 1 de 3');
+	assert.include(bot.texts()[0], 'Torrent number 9');
+	assert.notInclude(bot.texts()[0], 'Torrent number 10');
+	assert.deepStrictEqual(bot.buttons(), ['1/3=p:noop', '▶️=p:t:2', '⏭=p:t:3']);
+
+	await bot.pressButton('p:t:3');
+
+	const last = bot.telegramCalls.at(-2);
+	assert.deepStrictEqual([last?.method, last?.payload.message_id], ['editMessageText', 1]);
+	assert.include(bot.texts().at(-1) ?? '', 'Página 3 de 3');
+	assert.include(bot.texts().at(-1) ?? '', 'Torrent number 24');
+	assert.deepStrictEqual(bot.buttons(), ['⏮=p:t:1', '◀️=p:t:2', '3/3=p:noop']);
+	assert.strictEqual(bot.telegramCalls.at(-1)?.method, 'answerCallbackQuery');
+	assert.deepStrictEqual(
+		bot.realDebrid.requestsTo('GET', '/torrents').map((request) => `${request.query.get('page')}/${request.query.get('limit')}`),
+		['1/10', '3/10'],
+	);
+});
+
+test('a listing that fits one page has no navigation buttons', async () => {
+	const bot = await startBot();
+	bot.realDebrid.seedDownload({ id: 'D1', filename: 'only one' });
+
+	await bot.sendText('/status_download');
+
+	assert.include(bot.texts()[0], 'Downloads (1)');
+	assert.notInclude(bot.texts()[0], 'Página');
+	assert.deepStrictEqual(bot.buttons(), []);
+});
+
+test('falls back to the last page when the library shrank since the buttons were drawn', async () => {
+	const bot = await startBot();
+	for (let index = 0; index < 12; index++) bot.realDebrid.seedTorrent({ id: `ID${index}`, filename: `Torrent ${index}`, status: 'queued' });
+
+	await bot.pressButton('p:i:9');
+
+	assert.include(bot.texts()[0], 'Torrents incompletos (12)');
+	assert.include(bot.texts()[0], 'Página 2 de 2');
+});
+
+test('shortens names instead of overflowing when a page of long names does not fit one message', async () => {
+	const bot = await startBot();
+	for (let index = 0; index < 10; index++) bot.realDebrid.seedTorrent({ id: `ID${index}`, filename: `${index} <&> ${'n'.repeat(240)}` });
+
+	await bot.sendText('/status_torrent');
+
+	assert.strictEqual(bot.texts().length, 1);
+	assert.include(bot.texts()[0], '…');
+	assert.strictEqual(bot.texts()[0].split('%2Fdelete_torrent').length - 1, 10);
+});
+
+test('pages through search results, carrying the query in the buttons', async () => {
+	const bot = await startBot();
+	for (let index = 0; index < 15; index++) bot.realDebrid.seedTorrent({ id: `Z${index}`, filename: `Zelda.Part.${index}` });
+	bot.realDebrid.seedTorrent({ id: 'M', filename: 'Mario' });
+
+	await bot.sendText('zelda');
+	assert.include(bot.texts()[0], 'Torrents encontrados (15)');
+	assert.deepStrictEqual(bot.buttons(), ['1/2=p:noop', '▶️=p:st:2:zelda', '⏭=p:st:2:zelda']);
+
+	await bot.pressButton('p:st:2:zelda');
+	assert.include(bot.texts().at(-1) ?? '', 'Zelda.Part.14');
+	assert.notInclude(bot.texts().at(-1) ?? '', 'Mario');
+});
+
+test('shows the first page without buttons when the search text is too long to carry in them', async () => {
+	const bot = await startBot();
+	const query = 'the legend of zelda tears of the kingdom collectors edition';
+	for (let index = 0; index < 15; index++) bot.realDebrid.seedTorrent({ id: `Z${index}`, filename: `${query} ${index}` });
+
+	await bot.sendText(query);
+
+	assert.include(bot.texts()[0], 'longa demais para paginar');
+	assert.deepStrictEqual(bot.buttons(), []);
+});
+
+test('ignores navigation taps from anyone but the owner', async () => {
+	const bot = await startBot();
+	bot.realDebrid.seedTorrent({ id: 'A', filename: 'Zelda' });
+
+	await bot.pressButton('p:t:1', 1, 666);
+
+	assert.strictEqual(bot.realDebrid.requests.length, 0);
+	assert.strictEqual(
+		bot.telegramCalls.some((call) => call.method === 'editMessageText'),
+		false,
+	);
 });
 
 test('searches torrents and downloads by normalized name', async () => {
@@ -257,15 +338,15 @@ test('accepts commands addressed to the bot by name', async () => {
 	assert.include(bot.texts()[0], 'Instruções de uso');
 });
 
-test('keeps every message of a dense listing within the entity limit', async () => {
+test('keeps a page of dense cards within the entity limit', async () => {
 	const bot = await startBot();
 	for (let index = 0; index < 50; index++)
 		bot.realDebrid.seedTorrent({ id: `ID${index}`, filename: `T${index}`, status: 'downloading', progress: 5, speed: 1024, seeders: 3 });
 
 	await bot.sendText('/incomplete');
 
-	assert.isAbove(bot.texts().length, 4);
-	assert.strictEqual(bot.texts().join('').split('%2Fdelete_torrent').length - 1, 50);
+	assert.strictEqual(bot.texts().length, 1);
+	assert.include(bot.texts()[0], 'Página 1 de 5');
 });
 
 test('answers a very long text that matches nothing without echoing all of it', async () => {

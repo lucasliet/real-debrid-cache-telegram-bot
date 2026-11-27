@@ -85,6 +85,25 @@ export async function startBot(overrides: { config?: Partial<AppConfig>; externa
 			const entities = command ? [{ type: 'bot_command', offset: 0, length: command.length }] : undefined;
 			return bot.handleUpdate(message({ text, entities }, fromId));
 		},
+		/** Tap an inline button of the given message, as Telegram delivers it. */
+		pressButton(data: string, messageId = 1, fromId = OWNER_ID): Promise<void> {
+			return bot.handleUpdate({
+				update_id: ++updateId,
+				callback_query: {
+					id: String(updateId),
+					chat_instance: 'test',
+					data,
+					from: { id: fromId, is_bot: false, first_name: 'User' },
+					message: { message_id: messageId, date: 0, chat: { id: OWNER_ID, type: 'private' }, text: 'listing' },
+				},
+			} as Update);
+		},
+		/** Callback data of the navigation buttons attached to the last message sent or edited. */
+		buttons(): string[] {
+			const last = telegramCalls.filter((call) => call.method === 'sendMessage' || call.method === 'editMessageText').at(-1);
+			const markup = last?.payload.reply_markup as { inline_keyboard?: { text: string; callback_data: string }[][] } | undefined;
+			return (markup?.inline_keyboard ?? []).flat().map((button) => `${button.text}=${button.callback_data}`);
+		},
 		sendDocument(fileName: string, fileSize = 1024): Promise<void> {
 			return bot.handleUpdate(message({ document: { file_id: 'F1', file_unique_id: 'U1', file_name: fileName, file_size: fileSize } }));
 		},

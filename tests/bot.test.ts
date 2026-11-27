@@ -34,7 +34,7 @@ test('lists torrents as valid HTML even when names carry markup characters', asy
 	assert.include(listing, '2.00 MB/s');
 	assert.deepStrictEqual(
 		bot.buttons(),
-		['⬇️ Baixar 1=x:dl:t:1:A', '🗑️ Deletar 1=x:rm:t:1:A', '🗑️ Deletar 2=x:rm:t:1:B'],
+		['🗑️ Deletar 1=x:rm:t:1:A', '⬇️ Baixar 1=x:dl:t:1:A', '🗑️ Deletar 2=x:rm:t:1:B'],
 		'an unfinished torrent has nothing to download',
 	);
 	assert.deepStrictEqual(bot.telegramCalls[0].payload.parse_mode, 'HTML');
@@ -50,7 +50,7 @@ test('pages through every torrent with navigation buttons that edit the same mes
 	assert.include(bot.texts()[0], 'Página 1 de 3');
 	assert.include(bot.texts()[0], 'Torrent number 9');
 	assert.notInclude(bot.texts()[0], 'Torrent number 10');
-	assert.deepStrictEqual(bot.buttons().slice(0, 2), ['⬇️ Baixar 1=x:dl:t:1:ID0', '🗑️ Deletar 1=x:rm:t:1:ID0']);
+	assert.deepStrictEqual(bot.buttons().slice(0, 2), ['🗑️ Deletar 1=x:rm:t:1:ID0', '⬇️ Baixar 1=x:dl:t:1:ID0']);
 	assert.deepStrictEqual(bot.buttons().slice(20), ['1/3=noop', '▶️=p:t:2', '⏭=p:t:3']);
 
 	await bot.pressButton('p:t:3');
@@ -75,7 +75,7 @@ test('a listing that fits one page has only the entry buttons', async () => {
 
 	assert.include(bot.texts()[0], 'Downloads (1)');
 	assert.notInclude(bot.texts()[0], 'Página');
-	assert.deepStrictEqual(bot.buttons(), ['⬇️ Baixar=https://dl.example/D1', '🗑️ Deletar=x:rm:d:1:D1'], 'a single entry needs no number');
+	assert.deepStrictEqual(bot.buttons(), ['🗑️ Deletar=x:rm:d:1:D1', '⬇️ Baixar=https://dl.example/D1'], 'a single entry needs no number');
 	assert.notInclude(bot.texts()[0], '1.');
 	assert.notInclude(bot.texts()[0], 'mesmo número');
 });
@@ -108,7 +108,7 @@ test('pages through search results, carrying the query in the buttons', async ()
 
 	await bot.sendText('zelda');
 	assert.include(bot.texts()[0], 'Torrents encontrados (15)');
-	assert.strictEqual(bot.buttons()[0], '⬇️ Baixar 1=x:dl:st:1:Z0:zelda');
+	assert.strictEqual(bot.buttons()[0], '🗑️ Deletar 1=x:rm:st:1:Z0:zelda');
 	assert.deepStrictEqual(bot.buttons().slice(20), ['1/2=noop', '▶️=p:st:2:zelda', '⏭=p:st:2:zelda']);
 
 	await bot.pressButton('p:st:2:zelda');
@@ -125,7 +125,7 @@ test('shows the first page without page buttons when the search text is too long
 
 	assert.include(bot.texts()[0], 'longa demais para paginar');
 	assert.strictEqual(bot.buttons().length, 20, 'entries stay reachable by id');
-	assert.strictEqual(bot.buttons()[0], '⬇️ Baixar 1=x:dl:t:1:Z0');
+	assert.strictEqual(bot.buttons()[0], '🗑️ Deletar 1=x:rm:t:1:Z0');
 });
 
 test('ignores navigation taps from anyone but the owner', async () => {
@@ -153,7 +153,7 @@ test('searches torrents and downloads by normalized name', async () => {
 	assert.include(torrents, 'Torrents encontrados (1)');
 	assert.include(torrents, 'Zélda');
 	assert.include(downloads, 'legend of zelda ost.flac');
-	assert.deepStrictEqual(bot.buttons(), ['⬇️ Baixar=https://dl.example/D1', '🎥 Stream=x:sm:sd:1:D1:legend of zelda', '🗑️ Deletar=x:rm:sd:1:D1:legend of zelda']);
+	assert.deepStrictEqual(bot.buttons(), ['🗑️ Deletar=x:rm:sd:1:D1:legend of zelda', '⬇️ Baixar=https://dl.example/D1', '🎥 Stream=x:sm:sd:1:D1:legend of zelda']);
 });
 
 test('tells the user when a search finds nothing', async () => {
@@ -355,7 +355,7 @@ test('still opens an entry from the numbered buttons of older listings', async (
 	await bot.pressButton('o:t:1:A');
 	assert.include(bot.texts().at(-1) ?? '', 'Done');
 	assert.notInclude(bot.texts().at(-1) ?? '', 'Still going');
-	assert.deepStrictEqual(bot.buttons(), ['⬇️ Baixar=x:dl:t:1:A', '🗑️ Deletar=x:rm:t:1:A', '↩️ Voltar à lista=p:t:1']);
+	assert.deepStrictEqual(bot.buttons(), ['🗑️ Deletar=x:rm:t:1:A', '⬇️ Baixar=x:dl:t:1:A', '↩️ Voltar à lista=p:t:1']);
 
 	await bot.pressButton('o:t:1:B');
 	assert.deepStrictEqual(bot.buttons(), ['🗑️ Deletar=x:rm:t:1:B', '↩️ Voltar à lista=p:t:1'], 'an unfinished torrent has nothing to download');
@@ -371,7 +371,7 @@ test('a download offers its direct link as a button, and streaming when availabl
 	bot.realDebrid.seedDownload({ id: 'D1', filename: 'movie.mkv', streamable: 1 });
 
 	await bot.pressButton('o:d:1:D1');
-	assert.deepStrictEqual(bot.buttons(), ['⬇️ Baixar=https://dl.example/D1', '🎥 Stream=x:sm:d:1:D1', '🗑️ Deletar=x:rm:d:1:D1', '↩️ Voltar à lista=p:d:1']);
+	assert.deepStrictEqual(bot.buttons(), ['🗑️ Deletar=x:rm:d:1:D1', '⬇️ Baixar=https://dl.example/D1', '🎥 Stream=x:sm:d:1:D1', '↩️ Voltar à lista=p:d:1']);
 
 	await bot.pressButton('x:sm:d:1:D1');
 	assert.include(String(bot.telegramCalls.filter((call) => call.method === 'sendMessage').at(-1)?.payload.text), 'https://stream.example/full.m3u8');

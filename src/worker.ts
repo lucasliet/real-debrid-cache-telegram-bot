@@ -18,7 +18,8 @@ const bots = new SingleValueCache<Bot<Context>>();
  */
 function loadBot(env: Env): Promise<Bot<Context>> {
 	const config = loadConfig(env);
-	return bots.get(JSON.stringify(config), () => createBot(config, { ai: env.AI }));
+	// The explicit call is what the compiler checks: a structural assignment of `env.AI` would accept any `run`.
+	return bots.get(JSON.stringify(config), () => createBot(config, { ai: { run: (model, inputs) => env.AI.run(model, inputs) } }));
 }
 
 /**

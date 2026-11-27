@@ -291,6 +291,13 @@ async function showListing(ctx: Context, dependencies: BotDependencies, location
 	await show(ctx, (await listingScreen(dependencies, location)) ?? { text: LISTINGS[location.kind].empty });
 }
 
+/** Groups of callback data a pattern matched. grammy filtered with the same pattern, so the throw is unreachable — and loud, via the error boundary, if that ever changes. */
+function capturesOf(pattern: RegExp, data: string): RegExpExecArray {
+	const match = pattern.exec(data);
+	if (!match) throw new Error(`Callback data does not match ${pattern}: ${data}`);
+	return match;
+}
+
 /** Handles every button of the listings by editing the message in place. */
 export function listingNavigation(dependencies: BotDependencies): Composer<Context> {
 	const { realDebrid, library, sleep } = dependencies;
@@ -304,31 +311,24 @@ export function listingNavigation(dependencies: BotDependencies): Composer<Conte
 	});
 
 	composer.callbackQuery(DOWNLOAD_LINKS_PATTERN, async (ctx) => {
-		// grammy has matched this pattern already; the guard only satisfies the `string | RegExpMatchArray` union.
-		const match = DOWNLOAD_LINKS_PATTERN.exec(ctx.callbackQuery.data);
-		if (!match) return void (await ctx.answerCallbackQuery());
-		await replyDownloadLinks(ctx, '📥 Links de download', await library.getDownloadLinks(match[1]), sleep);
+		const [, torrentId] = capturesOf(DOWNLOAD_LINKS_PATTERN, ctx.callbackQuery.data);
+		await replyDownloadLinks(ctx, '📥 Links de download', await library.getDownloadLinks(torrentId), sleep);
 		await ctx.answerCallbackQuery();
 	});
 
 	composer.callbackQuery(STREAM_PATTERN, async (ctx) => {
-		const match = STREAM_PATTERN.exec(ctx.callbackQuery.data);
-		if (!match) return void (await ctx.answerCallbackQuery());
-		await replyStreamLinks(ctx, dependencies, match[1]);
+		const [, downloadId] = capturesOf(STREAM_PATTERN, ctx.callbackQuery.data);
+		await replyStreamLinks(ctx, dependencies, downloadId);
 	});
 
 	composer.callbackQuery(PAGE_PATTERN, async (ctx) => {
-		const match = PAGE_PATTERN.exec(ctx.callbackQuery.data);
-		if (!match) return void (await ctx.answerCallbackQuery());
-		const [, kind, page, query = ''] = match;
+		const [, kind, page, query = ''] = capturesOf(PAGE_PATTERN, ctx.callbackQuery.data);
 		await showListing(ctx, dependencies, { kind: listingKind(kind), page: Number(page), query });
 		await ctx.answerCallbackQuery();
 	});
 
 	composer.callbackQuery(ENTRY_PATTERN, async (ctx) => {
-		const match = ENTRY_PATTERN.exec(ctx.callbackQuery.data);
-		if (!match) return void (await ctx.answerCallbackQuery());
-		const [, action, kind, page, id, query = ''] = match;
+		const [, action, kind, page, id, query = ''] = capturesOf(ENTRY_PATTERN, ctx.callbackQuery.data);
 		const location: Location = { kind: listingKind(kind), page: Number(page), query };
 
 		const entry = await findEntry(dependencies, location, id);

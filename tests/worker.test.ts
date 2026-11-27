@@ -8,8 +8,12 @@ import { rejects } from './support/rejects.ts';
 
 const SECRETS = { BOT_TOKEN: '123:worker-test', RD_TOKEN: 'rd', ALLOWED_USER_ID: '1000' };
 
-/** The webhook path never calls the AI binding; an empty object satisfies the generated `Env` type. */
-const AI_STUB = {} as Ai;
+/** The webhook path never calls the AI binding; the rejection keeps a future caller from failing silently. */
+const AI_STUB = {
+	async run(model: string, inputs: Record<string, unknown>): Promise<Record<string, unknown>> {
+		throw new Error('AI_STUB: the AI binding is not available in the webhook test setup');
+	},
+} as Ai;
 
 /** Dead stub: the fetch handler only forwards the context, so no span API is exercised. */
 const tracing: Tracing = {

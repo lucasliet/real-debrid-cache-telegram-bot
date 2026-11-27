@@ -1,7 +1,11 @@
 /** One yes/no question of the decision model; `noul` is its probabilistic answer field. */
 export type DecisionQuestion = { type: 'noul'; instructions: string };
 
-/** Request body of a decision model following the System One API. */
+/**
+ * Request body of a decision model following the System One API. Kept as a type alias (not an interface):
+ * the implicit index signature is what makes it pass straight to `env.AI.run`, whose fallback overload
+ * takes `Record<string, unknown>`.
+ */
 export type DecisionInputs = {
 	model: string;
 	state: string;
@@ -10,8 +14,9 @@ export type DecisionInputs = {
 
 /**
  * The part of the Workers AI binding this module needs, so tests can stand in for it. The runtime types an
- * unlisted model's `run` as `Record<string, unknown>` in and out (the generated `Ai` fallback overload), so
- * the assistant validates that shape on every answer instead of trusting it.
+ * unlisted model's `run` as `Record<string, unknown>` in and out, so the assistant validates that shape on
+ * every answer instead of trusting it. The `worker.ts` boundary adapts the binding with an explicit call,
+ * which is what makes the compiler check the match (a bare structural assignment would accept any `run`).
  */
 export interface DecisionModelRunner {
 	run(model: string, inputs: DecisionInputs): Promise<Record<string, unknown>>;

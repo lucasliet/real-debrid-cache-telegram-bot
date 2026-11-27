@@ -62,7 +62,7 @@ test('keeps a torrent that is still converting, so a slow magnet is not thrown a
 	const { api, service } = setup({ maxPollAttempts: 2 });
 	api.conversionPolls = 99;
 
-	const error = await rejects(() => service.ingest(MAGNET), PendingTorrentError, '/delete_torrent T1');
+	const error = await rejects(() => service.ingest(MAGNET), PendingTorrentError, 'continua na sua conta');
 	assert.strictEqual(error.torrentId, 'T1');
 	assert.deepStrictEqual([...api.torrents.keys()], ['T1']);
 });

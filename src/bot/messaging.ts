@@ -1,4 +1,4 @@
-import type { Context } from 'grammy';
+import type { Context, InlineKeyboard } from 'grammy';
 import { TELEGRAM_MESSAGE_LIMIT } from '@/config/constants.ts';
 import { RealDebridError } from '@/realdebrid/RealDebridError.ts';
 import { sleep as realSleep, type Sleep } from '@/util/sleep.ts';
@@ -67,20 +67,25 @@ function splitOversized(block: string, limit: number): string[] {
 	return pieces;
 }
 
-/** Reply with a single HTML message. */
-export async function replyHtml(ctx: Context, html: string): Promise<void> {
-	await ctx.reply(html, HTML_OPTIONS);
+/**
+ * Reply with a single HTML message.
+ * @param keyboard - Buttons attached to the message
+ */
+export async function replyHtml(ctx: Context, html: string, keyboard?: InlineKeyboard): Promise<void> {
+	await ctx.reply(html, { ...HTML_OPTIONS, reply_markup: keyboard });
 }
 
 /**
  * Reply with HTML blocks packed into as few messages as possible, pacing them to respect Telegram's rate limit.
  * @param blocks - Self-contained HTML pieces (already escaped)
+ * @param keyboard - Buttons attached to the last message
  */
-export async function replyBlocks(ctx: Context, blocks: readonly string[], sleep: Sleep = realSleep): Promise<void> {
+export async function replyBlocks(ctx: Context, blocks: readonly string[], sleep: Sleep = realSleep, keyboard?: InlineKeyboard): Promise<void> {
 	const messages = packBlocks(blocks);
 	for (const [index, message] of messages.entries()) {
 		if (index > 0) await sleep(DELAY_BETWEEN_MESSAGES_MS);
-		await ctx.reply(message, HTML_OPTIONS);
+		const isLast = index === messages.length - 1;
+		await ctx.reply(message, { ...HTML_OPTIONS, reply_markup: isLast ? keyboard : undefined });
 	}
 }
 

@@ -59,7 +59,6 @@ export function downloadCard(download: Download, options: CardOptions = {}): str
 export function unrestrictedLinkCard(file: UnrestrictedLink, position?: number): string {
 	const prefix = position === undefined ? '' : `${position}. `;
 	const lines = [`${prefix}${bold(file.filename)} (${formatBytes(file.filesize)})`, escapeHtml(file.download)];
-	if (file.streamable === 1) lines.push(`🎥 Streaming: ${code(`/stream ${file.id}`)}`);
 	return lines.join('\n');
 }
 

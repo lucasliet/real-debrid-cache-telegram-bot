@@ -37,7 +37,7 @@ export class IngestionProgressView {
 export function individualSummary(result: IndividualResult, describeError: (error: unknown) => string): string {
 	const total = result.added.length + result.failed.length + result.skipped.length;
 	if (result.added.length === total) {
-		return `✅ Todos os ${total} arquivo(s) foram adicionados, cada um em seu próprio torrent.\n\nUse /incomplete para acompanhar o progresso.`;
+		return `✅ Todos os ${total} arquivo(s) foram adicionados, cada um em seu próprio torrent.`;
 	}
 
 	const lines = [`⚠️ ${result.added.length} de ${total} arquivo(s) adicionados.`];
@@ -61,7 +61,5 @@ export function bundleSummary(torrent: TorrentInfo): string {
 		`${bold('📦 Arquivos:')} ${torrent.files.length}`,
 		`${bold('📊 Status:')} ${escapeHtml(torrent.status)}`,
 		`${bold('📈 Progresso:')} ${torrent.progress}%`,
-		'',
-		`Use /incomplete para acompanhar e ${code(`/download ${torrent.id}`)} para obter os links quando terminar.`,
 	].join('\n');
 }

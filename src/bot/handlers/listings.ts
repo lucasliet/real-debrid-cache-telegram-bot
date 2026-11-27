@@ -4,7 +4,8 @@ import { replyBlocks } from '@/bot/messaging.ts';
 import { bold } from '@/bot/views/html.ts';
 import { downloadCard, streamBlocks, torrentCard, unrestrictedLinkCard } from '@/bot/views/library.ts';
 import { LISTING_PAGE_SIZE, TELEGRAM_MESSAGE_LIMIT } from '@/config/constants.ts';
-import type { Download, Page, Torrent } from '@/realdebrid/types.ts';
+import type { Download, Page, Torrent, UnrestrictedLink } from '@/realdebrid/types.ts';
+import type { Sleep } from '@/util/sleep.ts';
 
 /**
  * Listings the user can page through and act on. Each one is a single message with one row of action buttons
@@ -46,6 +47,11 @@ const MAX_QUERY_BYTES = 28;
 const PAGE_PATTERN = /^p:(t|d|i|st|sd):(\d+)(?::([\s\S]*))?$/;
 const ENTRY_PATTERN = /^(o|x:dl|x:sm|x:rm|x:ry):(t|d|i|st|sd):(\d+):([^:]+)(?::([\s\S]*))?$/;
 const NOOP = 'noop';
+
+/** Buttons that do not belong to a listing: they act on an id alone and answer with a new message. */
+const SHOW_INCOMPLETE = 'n:i';
+const DOWNLOAD_LINKS_PATTERN = /^g:([^:]+)$/;
+const STREAM_PATTERN = /^s:([^:]+)$/;
 
 function fitsInButtons(query: string): boolean {
 	return new TextEncoder().encode(query).length <= MAX_QUERY_BYTES;
@@ -191,6 +197,42 @@ function confirmDeletionScreen(entry: Entry, location: Location): Screen {
 	return { text: `${card(entry, false)}\n\n${bold(`⚠️ Deletar este ${entry.type}? Esta ação não pode ser desfeita.`)}`, keyboard };
 }
 
+/** Button that lists, in a new message, the torrents still in progress. */
+export function progressButton(keyboard = new InlineKeyboard()): InlineKeyboard {
+	return keyboard.text('⏳ Ver progresso', SHOW_INCOMPLETE);
+}
+
+/** Button that sends the direct links of a torrent once it has finished. */
+export function downloadLinksButton(torrentId: string, keyboard = new InlineKeyboard()): InlineKeyboard {
+	return keyboard.text('⬇️ Baixar', `g:${torrentId}`);
+}
+
+/** Button that asks to delete a torrent the user was just told about; it reuses the confirmation of the listings. */
+export function removeTorrentButton(torrentId: string, keyboard = new InlineKeyboard()): InlineKeyboard {
+	return keyboard.text('🗑️ Remover', entryData('x:rm', { kind: 'i', page: 1, query: '' }, torrentId));
+}
+
+/**
+ * Reply with direct download links, with one streaming button per streamable file.
+ * @param title - Heading of the message
+ */
+export async function replyDownloadLinks(ctx: Context, title: string, files: readonly UnrestrictedLink[], sleep: Sleep): Promise<void> {
+	const numbered = files.length > 1;
+	const keyboard = new InlineKeyboard();
+	for (const [index, file] of files.entries()) {
+		if (file.streamable === 1) keyboard.text(numbered ? `🎥 Stream ${index + 1}` : '🎥 Stream', `s:${file.id}`).row();
+	}
+	const blocks = [bold(title), ...files.map((file, index) => unrestrictedLinkCard(file, numbered ? index + 1 : undefined))];
+	await replyBlocks(ctx, blocks, sleep, keyboard.inline_keyboard.flat().length > 0 ? keyboard : undefined);
+}
+
+async function replyStreamLinks(ctx: Context, dependencies: BotDependencies, downloadId: string): Promise<void> {
+	const blocks = streamBlocks(await dependencies.realDebrid.getTranscodeLinks(downloadId));
+	if (blocks.length === 0) return void (await ctx.answerCallbackQuery({ text: 'Nenhum link de streaming disponível.', show_alert: true }));
+	await replyBlocks(ctx, [bold('🎥 Links de streaming'), ...blocks], dependencies.sleep);
+	await ctx.answerCallbackQuery();
+}
+
 /**
  * Reply with the first page of a listing.
  * @param query - Search text, for the search listings
@@ -237,6 +279,22 @@ export function listingNavigation(dependencies: BotDependencies): Composer<Conte
 
 	composer.callbackQuery(NOOP, (ctx) => ctx.answerCallbackQuery());
 
+	composer.callbackQuery(SHOW_INCOMPLETE, async (ctx) => {
+		await replyListing(ctx, dependencies, 'i');
+		await ctx.answerCallbackQuery();
+	});
+
+	composer.callbackQuery(DOWNLOAD_LINKS_PATTERN, async (ctx) => {
+		const [, torrentId] = ctx.match as RegExpMatchArray;
+		await replyDownloadLinks(ctx, '📥 Links de download', await library.getDownloadLinks(torrentId), sleep);
+		await ctx.answerCallbackQuery();
+	});
+
+	composer.callbackQuery(STREAM_PATTERN, async (ctx) => {
+		const [, downloadId] = ctx.match as RegExpMatchArray;
+		await replyStreamLinks(ctx, dependencies, downloadId);
+	});
+
 	composer.callbackQuery(PAGE_PATTERN, async (ctx) => {
 		const [, kind, page, query = ''] = ctx.match as RegExpMatchArray;
 		await showListing(ctx, dependencies, { kind: kind as ListingKind, page: Number(page), query });
@@ -265,17 +323,11 @@ export function listingNavigation(dependencies: BotDependencies): Composer<Conte
 				else await realDebrid.deleteDownload(id);
 				await showListing(ctx, dependencies, location);
 				return void (await ctx.answerCallbackQuery({ text: '✅ Deletado.' }));
-			case 'x:dl': {
-				const links = await library.getDownloadLinks(id);
-				await replyBlocks(ctx, [bold('📥 Links de download'), ...links.map((file, index) => unrestrictedLinkCard(file, index + 1))], sleep);
+			case 'x:dl':
+				await replyDownloadLinks(ctx, '📥 Links de download', await library.getDownloadLinks(id), sleep);
 				break;
-			}
-			case 'x:sm': {
-				const blocks = streamBlocks(await realDebrid.getTranscodeLinks(id));
-				if (blocks.length === 0) return void (await ctx.answerCallbackQuery({ text: 'Nenhum link de streaming disponível.', show_alert: true }));
-				await replyBlocks(ctx, [bold('🎥 Links de streaming'), ...blocks], sleep);
-				break;
-			}
+			case 'x:sm':
+				return await replyStreamLinks(ctx, dependencies, id);
 		}
 		await ctx.answerCallbackQuery();
 	});

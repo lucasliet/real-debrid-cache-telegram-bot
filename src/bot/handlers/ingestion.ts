@@ -1,9 +1,11 @@
 import { Composer, type Context } from 'grammy';
 import type { BotDependencies } from '@/bot/createBot.ts';
 import { replySearch } from '@/bot/handlers/library.ts';
+import { downloadLinksButton, progressButton, removeTorrentButton } from '@/bot/handlers/listings.ts';
 import { describeError, editHtml, replyHtml } from '@/bot/messaging.ts';
+import { escapeHtml } from '@/bot/views/html.ts';
 import { bundleSummary, IngestionProgressView, individualSummary } from '@/bot/views/ingestion.ts';
-import type { IngestionEvent, IngestionResult, TorrentSource } from '@/services/TorrentIngestionService.ts';
+import { type IngestionEvent, type IngestionResult, PendingTorrentError, type TorrentSource } from '@/services/TorrentIngestionService.ts';
 import { downloadTelegramFile } from '@/telegram/files.ts';
 
 /** Minimum spacing between edits of the progress message. */
@@ -35,14 +37,22 @@ export function ingestionHandlers(dependencies: BotDependencies): Composer<Conte
 		try {
 			result = await ingestion.ingest(source, reportProgress);
 		} catch (error) {
-			// The error boundary replies with the reason; the status message just stops claiming work is in progress.
 			await updateStatus('❌ Não foi possível concluir a adição do torrent.');
+			// A torrent still converting stays in the account, so the user gets buttons to follow or remove it.
+			if (error instanceof PendingTorrentError) {
+				return await replyHtml(ctx, `⏳ ${escapeHtml(error.message)}`, removeTorrentButton(error.torrentId, progressButton()));
+			}
+			// The error boundary replies with the reason; the status message just stops claiming work is in progress.
 			throw error;
 		}
 
 		// Reporting happens outside the try: a failure to deliver the summary is not a failed ingestion.
 		await updateStatus('✅ Processamento concluído.');
-		await replyHtml(ctx, result.strategy === 'bundle' ? bundleSummary(result.torrent) : individualSummary(result, describeError));
+		if (result.strategy === 'bundle') {
+			await replyHtml(ctx, bundleSummary(result.torrent), downloadLinksButton(result.torrent.id, progressButton()));
+		} else {
+			await replyHtml(ctx, individualSummary(result, describeError), result.added.length > 0 ? progressButton() : undefined);
+		}
 	}
 
 	composer.on('message:document', async (ctx) => {

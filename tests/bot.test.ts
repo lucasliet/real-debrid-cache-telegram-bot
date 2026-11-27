@@ -422,6 +422,62 @@ test('answers the tap even when the action fails, so the button does not keep sp
 	assert.strictEqual(bot.telegramCalls.at(-1)?.method, 'answerCallbackQuery');
 });
 
+test('offers streaming of each unrestricted file as a button, not as a command to type', async () => {
+	const bot = await startBot();
+	bot.realDebrid.seedTorrent({ id: 'A', filename: 'Show', links: ['https://real-debrid.com/d/1', 'https://real-debrid.com/d/2'] });
+
+	await bot.sendText('/download A');
+	assert.notInclude(bot.texts()[0], '/stream');
+	assert.deepStrictEqual(bot.buttons(), ['🎥 Stream 1=s:DL1', '🎥 Stream 2=s:DL1']);
+
+	await bot.pressButton('s:DL1');
+	assert.include(String(bot.telegramCalls.filter((call) => call.method === 'sendMessage').at(-1)?.payload.text), 'https://stream.example/full.m3u8');
+
+	await bot.sendText('/unrestrict https://hoster.example/file');
+	assert.deepStrictEqual(bot.buttons(), ['🎥 Stream=s:DL1'], 'a single file needs no number');
+});
+
+test('after adding a torrent, following and downloading it are buttons', async () => {
+	const bot = await startBot();
+	bot.realDebrid.filesOfNextTorrents = [torrentFile(1, '/Movie.mkv')];
+
+	await bot.sendText('magnet:?xt=urn:btih:abc');
+	assert.notInclude(bot.texts().at(-1) ?? '', '/incomplete');
+	assert.deepStrictEqual(bot.buttons(), ['⏳ Ver progresso=n:i', '⬇️ Baixar=g:T1']);
+
+	await bot.pressButton('n:i');
+	assert.include(String(bot.telegramCalls.filter((call) => call.method === 'sendMessage').at(-1)?.payload.text), 'Torrents incompletos (1)');
+
+	await bot.pressButton('g:T1');
+	assert.match(bot.texts().at(-1) ?? '', /Nenhum link disponível/, 'the torrent has not finished yet');
+});
+
+test('after adding a ROM pack, following it is a button', async () => {
+	const bot = await startBot();
+	bot.realDebrid.filesOfNextTorrents = [torrentFile(1, '/A.nsp'), torrentFile(2, '/B.nsp')];
+
+	await bot.sendText('magnet:?xt=urn:btih:abc');
+
+	assert.notInclude(bot.texts().at(-1) ?? '', '/incomplete');
+	assert.deepStrictEqual(bot.buttons(), ['⏳ Ver progresso=n:i']);
+});
+
+test('a magnet still converting comes with buttons to follow or remove it', async () => {
+	const bot = await startBot();
+	bot.realDebrid.conversionPolls = 99;
+
+	await bot.sendText('magnet:?xt=urn:btih:abc');
+
+	assert.include(bot.texts().at(-1) ?? '', 'continua na sua conta');
+	assert.notInclude(bot.texts().at(-1) ?? '', '/delete_torrent');
+	assert.deepStrictEqual(bot.buttons(), ['⏳ Ver progresso=n:i', '🗑️ Remover=x:rm:i:1:T1']);
+
+	await bot.pressButton('x:rm:i:1:T1');
+	assert.include(bot.texts().at(-1) ?? '', 'Deletar este torrent?');
+	await bot.pressButton('x:ry:i:1:T1');
+	assert.strictEqual(bot.realDebrid.torrents.size, 0);
+});
+
 test('keeps a page of dense cards within the entity limit', async () => {
 	const bot = await startBot();
 	for (let index = 0; index < 50; index++)

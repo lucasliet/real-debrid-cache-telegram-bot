@@ -1,10 +1,10 @@
 import { Composer, type Context } from 'grammy';
 import type { BotDependencies } from '@/bot/createBot.ts';
-import { listingNavigation, replyEntries, replyListing } from '@/bot/handlers/listings.ts';
+import { listingNavigation, replyDownloadLinks, replyEntries, replyListing } from '@/bot/handlers/listings.ts';
 import { describeError, replyBlocks, replyHtml } from '@/bot/messaging.ts';
 import { requireArgument } from '@/bot/middleware.ts';
 import { bold, escapeHtml, truncate } from '@/bot/views/html.ts';
-import { accountSummary, bulkDeleteSummary, streamBlocks, unrestrictedLinkCard } from '@/bot/views/library.ts';
+import { accountSummary, bulkDeleteSummary, streamBlocks } from '@/bot/views/library.ts';
 
 /** A pasted text can be as long as a whole message; echoing it in full would not fit the reply. */
 const MAX_ECHOED_QUERY_LENGTH = 100;
@@ -26,12 +26,12 @@ export function libraryHandlers(dependencies: BotDependencies): Composer<Context
 
 	composer.command('download', async (ctx) => {
 		const links = await library.getDownloadLinks(requireArgument(ctx, '/download 12345'));
-		await replyBlocks(ctx, [bold('📥 Links de download'), ...links.map((file, index) => unrestrictedLinkCard(file, index + 1))], sleep);
+		await replyDownloadLinks(ctx, '📥 Links de download', links, sleep);
 	});
 
 	composer.command('unrestrict', async (ctx) => {
 		const file = await realDebrid.unrestrictLink(requireArgument(ctx, '/unrestrict https://hoster.com/arquivo'));
-		await replyBlocks(ctx, [bold('🔓 Link liberado'), unrestrictedLinkCard(file)], sleep);
+		await replyDownloadLinks(ctx, '🔓 Link liberado', [file], sleep);
 	});
 
 	composer.command('stream', async (ctx) => {

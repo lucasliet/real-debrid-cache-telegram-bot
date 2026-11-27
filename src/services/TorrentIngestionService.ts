@@ -35,7 +35,7 @@ export type IngestionResult =
 export class PendingTorrentError extends UserFacingError {
 	constructor(readonly torrentId: string) {
 		super(
-			`O Real-Debrid ainda não resolveu os arquivos do torrent ${torrentId}. Ele continua na sua conta: acompanhe com /incomplete e, quando sair de "convertendo magnet", selecione os arquivos no site do Real-Debrid, ou remova com /delete_torrent ${torrentId}.`,
+			`O Real-Debrid ainda não resolveu os arquivos do torrent ${torrentId}. Ele continua na sua conta: quando sair de "convertendo magnet", selecione os arquivos no site do Real-Debrid.`,
 		);
 		this.name = 'PendingTorrentError';
 	}

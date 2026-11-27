@@ -107,13 +107,15 @@ function addActionRows(keyboard: InlineKeyboard, entries: readonly Entry[], loca
 		const number = entries.length > 1 ? ` ${index + 1}` : '';
 		const { id } = entry.item;
 
+		// Delete comes first, on the left, where it always was.
+		keyboard.text(`🗑️ Deletar${number}`, entryData('x:rm', location, id));
 		if (entry.type === 'torrent') {
 			if (entry.item.status === 'downloaded') keyboard.text(`⬇️ Baixar${number}`, entryData('x:dl', location, id));
 		} else {
 			keyboard.url(`⬇️ Baixar${number}`, entry.item.download);
 			if (entry.item.streamable === 1) keyboard.text(`🎥 Stream${number}`, entryData('x:sm', location, id));
 		}
-		keyboard.text(`🗑️ Deletar${number}`, entryData('x:rm', location, id)).row();
+		keyboard.row();
 	}
 }
 
@@ -171,16 +173,14 @@ function entryScreen(entry: Entry, location: Location): Screen {
 	const keyboard = new InlineKeyboard();
 	const { id } = entry.item;
 
+	keyboard.text('🗑️ Deletar', entryData('x:rm', location, id));
 	if (entry.type === 'torrent') {
 		if (entry.item.status === 'downloaded') keyboard.text('⬇️ Baixar', entryData('x:dl', location, id));
 	} else {
 		keyboard.url('⬇️ Baixar', entry.item.download);
 		if (entry.item.streamable === 1) keyboard.text('🎥 Stream', entryData('x:sm', location, id));
 	}
-	keyboard
-		.text('🗑️ Deletar', entryData('x:rm', location, id))
-		.row()
-		.text('↩️ Voltar à lista', pageData(location));
+	keyboard.row().text('↩️ Voltar à lista', pageData(location));
 
 	return { text: card(entry, false), keyboard };
 }

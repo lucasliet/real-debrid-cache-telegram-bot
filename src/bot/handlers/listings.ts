@@ -22,7 +22,23 @@ const LISTINGS = {
 
 export type ListingKind = keyof typeof LISTINGS;
 
+function isListingKind(candidate: string): candidate is ListingKind {
+	return Object.hasOwn(LISTINGS, candidate);
+}
+
+/** Listing kind carried in callback data; the navigation patterns only match known kinds, so the throw is a defensive guard. */
+function listingKind(candidate: string): ListingKind {
+	if (!isListingKind(candidate)) throw new Error(`Unknown listing kind in callback data: ${candidate}`);
+	return candidate;
+}
+
 type Entry = { readonly type: 'torrent'; readonly item: Torrent } | { readonly type: 'download'; readonly item: Download };
+
+/** Builds the torrent half of an `Entry`, so callers hand over items without crossing the union. */
+export const torrentEntry = (item: Torrent): Extract<Entry, { type: 'torrent' }> => ({ type: 'torrent', item });
+
+/** Builds the download half of an `Entry`. */
+export const downloadEntry = (item: Download): Extract<Entry, { type: 'download' }> => ({ type: 'download', item });
 
 /** Where a button leads back to: a page of a listing. All the state lives in the callback data. */
 interface Location {
@@ -246,16 +262,19 @@ export async function replyListing(ctx: Context, dependencies: BotDependencies, 
 /**
  * Reply with a fixed set of entries (such as AI suggestions), each one openable by its number.
  * @param title - Heading of the message
- * @param items - Entries to show; at most one page
+ * @param entries - Entries to show, all of the same kind, built with `torrentEntry`/`downloadEntry`; at most one page is sent
  */
-export async function replyEntries(ctx: Context, title: string, type: Entry['type'], items: readonly (Torrent | Download)[]): Promise<void> {
-	const entries = items.slice(0, LISTING_PAGE_SIZE).map((item) => ({ type, item }) as Entry);
+export async function replyEntries(ctx: Context, title: string, entries: readonly Extract<Entry, { type: 'torrent' }>[]): Promise<void>;
+export async function replyEntries(ctx: Context, title: string, entries: readonly Extract<Entry, { type: 'download' }>[]): Promise<void>;
+export async function replyEntries(ctx: Context, title: string, entries: readonly Entry[]): Promise<void> {
+	const visible = entries.slice(0, LISTING_PAGE_SIZE);
 	const keyboard = new InlineKeyboard();
 	// These entries come from no reproducible listing, so "back" leads to the plain listing of their type.
-	addActionRows(keyboard, entries, { kind: type === 'torrent' ? 't' : 'd', page: 1, query: '' });
+	const kind = visible[0]?.type === 'download' ? 'd' : 't';
+	addActionRows(keyboard, visible, { kind, page: 1, query: '' });
 	const header =
-		entries.length > 1 ? `${bold(`${title} (${entries.length})`)}\nOs botões abaixo agem sobre o item de mesmo número.` : bold(`${title} (${entries.length})`);
-	await ctx.reply(numberedCards(header, entries), { ...HTML_OPTIONS, reply_markup: keyboard });
+		visible.length > 1 ? `${bold(`${title} (${visible.length})`)}\nOs botões abaixo agem sobre o item de mesmo número.` : bold(`${title} (${visible.length})`);
+	await ctx.reply(numberedCards(header, visible), { ...HTML_OPTIONS, reply_markup: keyboard });
 }
 
 /** Replace the message the button belongs to. */
@@ -285,25 +304,32 @@ export function listingNavigation(dependencies: BotDependencies): Composer<Conte
 	});
 
 	composer.callbackQuery(DOWNLOAD_LINKS_PATTERN, async (ctx) => {
-		const [, torrentId] = ctx.match as RegExpMatchArray;
-		await replyDownloadLinks(ctx, '📥 Links de download', await library.getDownloadLinks(torrentId), sleep);
+		// grammy has matched this pattern already; the guard only satisfies the `string | RegExpMatchArray` union.
+		const match = DOWNLOAD_LINKS_PATTERN.exec(ctx.callbackQuery.data);
+		if (!match) return void (await ctx.answerCallbackQuery());
+		await replyDownloadLinks(ctx, '📥 Links de download', await library.getDownloadLinks(match[1]), sleep);
 		await ctx.answerCallbackQuery();
 	});
 
 	composer.callbackQuery(STREAM_PATTERN, async (ctx) => {
-		const [, downloadId] = ctx.match as RegExpMatchArray;
-		await replyStreamLinks(ctx, dependencies, downloadId);
+		const match = STREAM_PATTERN.exec(ctx.callbackQuery.data);
+		if (!match) return void (await ctx.answerCallbackQuery());
+		await replyStreamLinks(ctx, dependencies, match[1]);
 	});
 
 	composer.callbackQuery(PAGE_PATTERN, async (ctx) => {
-		const [, kind, page, query = ''] = ctx.match as RegExpMatchArray;
-		await showListing(ctx, dependencies, { kind: kind as ListingKind, page: Number(page), query });
+		const match = PAGE_PATTERN.exec(ctx.callbackQuery.data);
+		if (!match) return void (await ctx.answerCallbackQuery());
+		const [, kind, page, query = ''] = match;
+		await showListing(ctx, dependencies, { kind: listingKind(kind), page: Number(page), query });
 		await ctx.answerCallbackQuery();
 	});
 
 	composer.callbackQuery(ENTRY_PATTERN, async (ctx) => {
-		const [, action, kind, page, id, query = ''] = ctx.match as RegExpMatchArray;
-		const location: Location = { kind: kind as ListingKind, page: Number(page), query };
+		const match = ENTRY_PATTERN.exec(ctx.callbackQuery.data);
+		if (!match) return void (await ctx.answerCallbackQuery());
+		const [, action, kind, page, id, query = ''] = match;
+		const location: Location = { kind: listingKind(kind), page: Number(page), query };
 
 		const entry = await findEntry(dependencies, location, id);
 		if (!entry) {

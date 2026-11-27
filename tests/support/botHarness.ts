@@ -1,4 +1,4 @@
-import type { BotFullInfo, Update } from 'grammy/types';
+import type { BotFullInfo, InlineKeyboardMarkup, Message, MessageEntity, Update } from 'grammy/types';
 import type { DecisionModelRunner } from '@/ai/LibrarySearchAssistant.ts';
 import { createBot } from '@/bot/createBot.ts';
 import type { AppConfig } from '@/config/environment.ts';
@@ -50,30 +50,42 @@ export async function startBot(overrides: { config?: Partial<AppConfig>; externa
 				username: 'test_bot',
 				can_join_groups: false,
 				can_read_all_group_messages: false,
+				supports_guest_queries: false,
 				supports_inline_queries: false,
+				needs_inline_query_location: false,
 				can_connect_to_business: false,
 				has_main_web_app: false,
 				has_topics_enabled: false,
 				allows_users_to_create_topics: false,
-			} as BotFullInfo,
+				has_topic_sidebar: false,
+				can_manage_bots: false,
+				supports_join_request_queries: false,
+			} satisfies BotFullInfo,
 		},
 	);
 
 	bot.api.config.use((_previous, method, payload) => {
-		assertDeliverable(method, payload as Record<string, unknown>);
-		telegramCalls.push({ method, payload: payload as Record<string, unknown> });
+		assertDeliverable(method, payload);
+		telegramCalls.push({ method, payload });
 		const result =
 			method === 'getFile'
 				? { file_id: 'F1', file_unique_id: 'U1', file_path: 'documents/file.torrent' }
 				: { message_id: telegramCalls.length, date: 0, chat: { id: OWNER_ID, type: 'private' } };
+		// The transformer type is generic over the method, so no concrete response type fits it; `never` stands in.
 		return Promise.resolve({ ok: true, result } as never);
 	});
 
-	const message = (fields: Record<string, unknown>, fromId = OWNER_ID): Update =>
+	const message = (fields: Partial<Omit<Message, 'chat'>>, fromId = OWNER_ID): Update =>
 		({
 			update_id: ++updateId,
-			message: { message_id: updateId, date: 0, chat: { id: fromId, type: 'private' }, from: { id: fromId, is_bot: false, first_name: 'User' }, ...fields },
-		}) as Update;
+			message: {
+				message_id: updateId,
+				date: 0,
+				chat: { id: fromId, type: 'private', first_name: 'User' },
+				from: { id: fromId, is_bot: false, first_name: 'User' },
+				...fields,
+			},
+		}) satisfies Update;
 
 	return {
 		realDebrid,
@@ -82,7 +94,7 @@ export async function startBot(overrides: { config?: Partial<AppConfig>; externa
 		/** Deliver a text message; a leading command (with its optional @botname) is tagged with the entity Telegram would attach. */
 		sendText(text: string, fromId = OWNER_ID): Promise<void> {
 			const command = text.match(/^\/\w+(@\w+)?/)?.[0];
-			const entities = command ? [{ type: 'bot_command', offset: 0, length: command.length }] : undefined;
+			const entities: MessageEntity[] | undefined = command ? [{ type: 'bot_command', offset: 0, length: command.length }] : undefined;
 			return bot.handleUpdate(message({ text, entities }, fromId));
 		},
 		/** Tap an inline button of the given message, as Telegram delivers it. */
@@ -94,20 +106,22 @@ export async function startBot(overrides: { config?: Partial<AppConfig>; externa
 					chat_instance: 'test',
 					data,
 					from: { id: fromId, is_bot: false, first_name: 'User' },
-					message: { message_id: messageId, date: 0, chat: { id: OWNER_ID, type: 'private' }, text: 'listing' },
+					message: { message_id: messageId, date: 0, chat: { id: OWNER_ID, type: 'private', first_name: 'User' }, text: 'listing' },
 				},
-			} as Update);
+			});
 		},
 		/** Callback data of the navigation buttons attached to the last message sent or edited. */
 		buttons(): string[] {
 			const last = telegramCalls.filter((call) => call.method === 'sendMessage' || call.method === 'editMessageText').at(-1);
-			const markup = last?.payload.reply_markup as { inline_keyboard?: { text: string; callback_data?: string; url?: string }[][] } | undefined;
+			const markup = last?.payload.reply_markup as InlineKeyboardMarkup | undefined;
 			const buttons = (markup?.inline_keyboard ?? []).flat();
-			for (const button of buttons) {
+			return buttons.map((button) => {
+				const callbackData = 'callback_data' in button ? button.callback_data : undefined;
+				const url = 'url' in button ? button.url : undefined;
 				// Telegram rejects callback data longer than 64 bytes.
-				if (new TextEncoder().encode(button.callback_data ?? '').length > 64) throw new Error(`callback data too long: ${button.callback_data}`);
-			}
-			return buttons.map((button) => `${button.text}=${button.callback_data ?? button.url}`);
+				if (callbackData && new TextEncoder().encode(callbackData).length > 64) throw new Error(`callback data too long: ${callbackData}`);
+				return `${button.text}=${callbackData ?? url}`;
+			});
 		},
 		sendDocument(fileName: string, fileSize = 1024): Promise<void> {
 			return bot.handleUpdate(message({ document: { file_id: 'F1', file_unique_id: 'U1', file_name: fileName, file_size: fileSize } }));

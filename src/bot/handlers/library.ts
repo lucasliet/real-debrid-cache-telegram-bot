@@ -1,6 +1,6 @@
 import { Composer, type Context } from 'grammy';
 import type { BotDependencies } from '@/bot/createBot.ts';
-import { listingNavigation, replyDownloadLinks, replyEntries, replyListing } from '@/bot/handlers/listings.ts';
+import { downloadEntry, listingNavigation, replyDownloadLinks, replyEntries, replyListing, torrentEntry } from '@/bot/handlers/listings.ts';
 import { describeError, replyBlocks, replyHtml } from '@/bot/messaging.ts';
 import { requireArgument } from '@/bot/middleware.ts';
 import { bold, escapeHtml, truncate } from '@/bot/views/html.ts';
@@ -81,8 +81,8 @@ export async function replySearch(ctx: Context, query: string, dependencies: Bot
 
 	if (suggested) {
 		await replyHtml(ctx, `🤖 Nenhum nome contém "${escapeHtml(truncate(query, MAX_ECHOED_QUERY_LENGTH))}". Estas são sugestões da IA:`);
-		if (torrents.length > 0) await replyEntries(ctx, '📥 Torrents sugeridos', 'torrent', torrents);
-		if (downloads.length > 0) await replyEntries(ctx, '📦 Downloads sugeridos', 'download', downloads);
+		if (torrents.length > 0) await replyEntries(ctx, '📥 Torrents sugeridos', torrents.map(torrentEntry));
+		if (downloads.length > 0) await replyEntries(ctx, '📦 Downloads sugeridos', downloads.map(downloadEntry));
 		return;
 	}
 

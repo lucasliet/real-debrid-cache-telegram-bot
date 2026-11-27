@@ -1,17 +1,12 @@
 import { assert, test } from 'vitest';
-import { type DecisionModelRunner, LibrarySearchAssistant, MAX_CANDIDATES } from '@/ai/LibrarySearchAssistant.ts';
+import { type DecisionInputs, type DecisionModelRunner, LibrarySearchAssistant, MAX_CANDIDATES } from '@/ai/LibrarySearchAssistant.ts';
 import { loadConfig } from '@/config/environment.ts';
 import { startBot } from './support/botHarness.ts';
 import { rejects } from './support/rejects.ts';
 
-interface Question {
-	type: string;
-	instructions: string;
-}
-
 interface Call {
 	model: string;
-	inputs: { model: string; state: string; questions: Record<string, Question> };
+	inputs: DecisionInputs;
 }
 
 /**
@@ -22,7 +17,7 @@ function fakeDecisionModel(judge: (entry: string, state: string) => number) {
 	const calls: Call[] = [];
 	const ai: DecisionModelRunner = {
 		run: (model, inputs) => {
-			const call = { model, inputs } as Call;
+			const call: Call = { model, inputs };
 			calls.push(call);
 			const answers = Object.fromEntries(
 				Object.entries(call.inputs.questions).map(([id, question]) => {
@@ -104,9 +99,12 @@ test('keeps the answers of the requests that succeeded when another one fails', 
 test('rejects when no request succeeds or the answer has an unexpected shape', async () => {
 	const down: DecisionModelRunner = { run: () => Promise.reject(new Error('model unavailable')) };
 	const garbled: DecisionModelRunner = { run: () => Promise.resolve({ response: 'sorry' }) };
+	// The runtime binding may answer with null regardless of the declared record type.
+	const nullish: DecisionModelRunner = { run: () => Promise.resolve(null as never) };
 
 	await rejects(() => assistantFor(down).suggest('x', ['a']), Error, 'model unavailable');
 	await rejects(() => assistantFor(garbled).suggest('x', ['a']), Error, 'answers');
+	await rejects(() => assistantFor(nullish).suggest('x', ['a']), Error, 'answers');
 });
 
 test('ignores answers that are missing or not a probability', async () => {

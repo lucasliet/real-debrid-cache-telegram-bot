@@ -28,7 +28,7 @@ test('sends the bearer token and form-encodes POST parameters', async () => {
 
 test('uploads torrent files as a raw PUT body', async () => {
 	const api = new FakeRealDebrid();
-	const created = await clientFor(api.fetch).addTorrent(new TextEncoder().encode('d8:announce0:e').buffer as ArrayBuffer);
+	const created = await clientFor(api.fetch).addTorrent(new TextEncoder().encode('d8:announce0:e'));
 
 	assert.deepStrictEqual(created.id, 'T1');
 	assert.deepStrictEqual(api.requests[0].method, 'PUT');

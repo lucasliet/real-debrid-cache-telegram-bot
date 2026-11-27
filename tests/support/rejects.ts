@@ -8,8 +8,7 @@ import { assert } from 'vitest';
  */
 export async function rejects<E extends Error>(
 	run: () => Promise<unknown>,
-	// biome-ignore lint/suspicious/noExplicitAny: constructors of error classes take arbitrary arguments
-	errorClass: new (...args: any[]) => E,
+	errorClass: abstract new (...args: never[]) => E,
 	messageIncludes?: string,
 ): Promise<E> {
 	let error: unknown;
@@ -18,7 +17,9 @@ export async function rejects<E extends Error>(
 	} catch (caught) {
 		error = caught;
 	}
-	assert.instanceOf(error, errorClass, 'expected the call to reject');
-	if (messageIncludes) assert.include((error as E).message, messageIncludes);
-	return error as E;
+	if (!(error instanceof errorClass)) {
+		assert.fail(`expected the call to reject with ${errorClass.name}, got ${String(error)}`);
+	}
+	if (messageIncludes) assert.include(error.message, messageIncludes);
+	return error;
 }

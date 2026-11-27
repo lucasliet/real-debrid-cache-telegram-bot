@@ -45,7 +45,7 @@ export function createWebhookApp(options: WebhookAppOptions): Hono {
 
 		let update: Update;
 		try {
-			update = await c.req.json();
+			update = await c.req.json<Update>();
 		} catch {
 			return c.json({ ok: false, error: 'invalid body' }, 400);
 		}

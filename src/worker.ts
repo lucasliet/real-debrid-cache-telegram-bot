@@ -1,6 +1,5 @@
 import type { Bot, Context } from 'grammy';
 import type { Update } from 'grammy/types';
-import type { DecisionModelRunner } from '@/ai/LibrarySearchAssistant.ts';
 import { createBot } from '@/bot/createBot.ts';
 import { loadConfig } from '@/config/environment.ts';
 import { createWebhookApp } from '@/http/createWebhookApp.ts';
@@ -19,7 +18,7 @@ const bots = new SingleValueCache<Bot<Context>>();
  */
 function loadBot(env: Env): Promise<Bot<Context>> {
 	const config = loadConfig(env);
-	return bots.get(JSON.stringify(config), () => createBot(config, { ai: env.AI as unknown as DecisionModelRunner }));
+	return bots.get(JSON.stringify(config), () => createBot(config, { ai: env.AI }));
 }
 
 /**

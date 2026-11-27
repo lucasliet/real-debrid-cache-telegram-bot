@@ -79,9 +79,10 @@ test('does not claim a discarded extra copy is still in the account', async () =
 
 	if (result.strategy !== 'individual') throw new Error('expected the per-file strategy');
 	assert.deepStrictEqual([...api.torrents.keys()], ['T1']);
-	const message = (result.failed[0].error as Error).message;
-	assert.include(message, 'reenvie o torrent');
-	assert.notInclude(message, 'continua na sua conta');
+	const failure = result.failed[0];
+	if (!(failure.error instanceof Error)) throw new Error(`expected an Error failure, got ${String(failure.error)}`);
+	assert.include(failure.error.message, 'reenvie o torrent');
+	assert.notInclude(failure.error.message, 'continua na sua conta');
 });
 
 test('discards a bundle whose file selection is refused', async () => {

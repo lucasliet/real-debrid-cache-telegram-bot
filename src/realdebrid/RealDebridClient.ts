@@ -91,7 +91,7 @@ export class RealDebridClient {
 	 * Upload a `.torrent` file. The torrent stays in `waiting_files_selection` until `selectFiles` is called.
 	 * @param torrentFile - Raw bytes of the `.torrent` file
 	 */
-	addTorrent(torrentFile: ArrayBuffer): Promise<CreatedResource> {
+	addTorrent(torrentFile: BufferSource): Promise<CreatedResource> {
 		return this.request<CreatedResource>('PUT', '/torrents/addTorrent', {
 			body: torrentFile,
 			contentType: 'application/x-bittorrent',

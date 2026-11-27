@@ -1,6 +1,20 @@
-/** The part of the Workers AI binding this module needs, so tests can stand in for it. */
+/** One yes/no question of the decision model; `noul` is its probabilistic answer field. */
+export type DecisionQuestion = { type: 'noul'; instructions: string };
+
+/** Request body of a decision model following the System One API. */
+export type DecisionInputs = {
+	model: string;
+	state: string;
+	questions: Record<string, DecisionQuestion>;
+};
+
+/**
+ * The part of the Workers AI binding this module needs, so tests can stand in for it. The runtime types an
+ * unlisted model's `run` as `Record<string, unknown>` in and out (the generated `Ai` fallback overload), so
+ * the assistant validates that shape on every answer instead of trusting it.
+ */
 export interface DecisionModelRunner {
-	run(model: string, inputs: Record<string, unknown>): Promise<unknown>;
+	run(model: string, inputs: DecisionInputs): Promise<Record<string, unknown>>;
 }
 
 /** Questions a decision model accepts per request. */
@@ -72,9 +86,10 @@ export class LibrarySearchAssistant {
 
 		const outcomes = await Promise.allSettled(batches);
 		const answered = outcomes.filter((outcome) => outcome.status === 'fulfilled');
+		const failures = outcomes.filter((outcome) => outcome.status === 'rejected');
 		// A failed batch only narrows the search; with none answered there is nothing to suggest from.
-		if (answered.length === 0) throw (outcomes[0] as PromiseRejectedResult).reason;
-		if (answered.length < outcomes.length) console.warn(`[AI] ${outcomes.length - answered.length} of ${outcomes.length} requests failed`);
+		if (answered.length === 0) throw failures[0]?.reason ?? new Error('Workers AI request failed without a reason');
+		if (answered.length < outcomes.length) console.warn(`[AI] ${failures.length} of ${outcomes.length} requests failed`);
 
 		const ranked = answered
 			.flatMap((outcome) => [...outcome.value])
@@ -93,24 +108,32 @@ export class LibrarySearchAssistant {
 	 * @returns Probability that the request refers to each entry, by position
 	 */
 	private async evaluate(query: string, names: readonly string[], offset: number): Promise<Map<number, number>> {
-		const questions = Object.fromEntries(names.map((name, index) => [questionId(offset + index), { type: 'noul', instructions: describe(name) }]));
+		const questions = Object.fromEntries(
+			names.map((name, index): [string, DecisionQuestion] => [questionId(offset + index), { type: 'noul', instructions: describe(name) }]),
+		);
 
 		const output = await this.ai.run(this.options.model, {
 			model: this.modelSelector,
 			state: `${GUIDANCE}\n\nRequest: ${query}`,
 			questions,
 		});
-
-		const answers = (output as { answers?: Record<string, { noul?: unknown }> } | null)?.answers;
-		if (!answers || typeof answers !== 'object') throw new Error('Workers AI answered without "answers"');
+		// The declared `Record` is only a promise of the runtime: the binding may answer with null or garbage.
+		if (!isRecord(output) || !isRecord(output.answers)) throw new Error('Workers AI answered without "answers"');
+		const { answers } = output;
 
 		const probabilities = new Map<number, number>();
 		for (const index of names.keys()) {
-			const probability = answers[questionId(offset + index)]?.noul;
-			if (typeof probability === 'number' && Number.isFinite(probability)) probabilities.set(offset + index, probability);
+			const answer = answers[questionId(offset + index)];
+			if (!isRecord(answer)) continue;
+			const { noul } = answer;
+			if (typeof noul === 'number' && Number.isFinite(noul)) probabilities.set(offset + index, noul);
 		}
 		return probabilities;
 	}
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null;
 }
 
 function questionId(position: number): string {

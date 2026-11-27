@@ -14,7 +14,7 @@ por arquivo**, cada cópia com um único arquivo selecionado. Assim o Real-Debri
 - Progresso em tempo real numa única mensagem, com resumo das falhas por arquivo
 - Busca por nome em torrents e downloads, ignorando acentos, maiúsculas e separadores (`.`, `_`, `-`)
 - Listagens e resultados de busca paginados numa única mensagem, com botões de navegação (⏮ ◀️ ▶️ ⏭)
-- Cada item da lista tem um botão numerado que o abre no lugar, com as ações Baixar, Stream e Deletar (com confirmação) como botões
+- Cada item da lista tem sua linha de botões (Baixar, Stream, Deletar), numerada como o item; Deletar pede confirmação
 - Quando a busca literal não encontra nada, o [Workers AI](https://developers.cloudflare.com/workers-ai/) sugere itens da biblioteca a partir da descrição
   (ex.: "aquele filme do Nolan sobre a bomba")
 - Links diretos (`/download`, `/unrestrict`) e de streaming (`/stream`)

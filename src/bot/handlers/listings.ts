@@ -7,8 +7,8 @@ import { LISTING_PAGE_SIZE, TELEGRAM_MESSAGE_LIMIT } from '@/config/constants.ts
 import type { Download, Page, Torrent } from '@/realdebrid/types.ts';
 
 /**
- * Listings the user can page through and act on. Each one is a single message: numbered buttons open an entry
- * in place, and the entry shows its actions as buttons. Everything is driven by inline keyboards because
+ * Listings the user can page through and act on. Each one is a single message with one row of action buttons
+ * per entry, numbered like the cards. Everything is driven by inline keyboards because
  * links that prefill a command (`tg://msg`) are not understood by every Telegram client.
  */
 const LISTINGS = {
@@ -42,7 +42,6 @@ const HTML_OPTIONS = { parse_mode: 'HTML', link_preview_options: { is_disabled: 
  * up to this size always fits next to it; a longer one cannot be carried by the buttons.
  */
 const MAX_QUERY_BYTES = 28;
-const NUMBER_BUTTONS_PER_ROW = 5;
 
 const PAGE_PATTERN = /^p:(t|d|i|st|sd):(\d+)(?::([\s\S]*))?$/;
 const ENTRY_PATTERN = /^(o|x:dl|x:sm|x:rm|x:ry):(t|d|i|st|sd):(\d+):([^:]+)(?::([\s\S]*))?$/;
@@ -96,13 +95,23 @@ function numberedCards(header: string, entries: readonly Entry[]): string {
 	return full.length <= TELEGRAM_MESSAGE_LIMIT ? full : compose(true);
 }
 
-/** One button per entry, numbered like the cards, opening that entry. */
-function addNumberButtons(keyboard: InlineKeyboard, entries: readonly Entry[], location: Location): void {
+/**
+ * One row of action buttons per entry, labelled with the entry's number, so every action is one tap away.
+ * Deleting leads to a confirmation screen; the other actions answer right away.
+ */
+function addActionRows(keyboard: InlineKeyboard, entries: readonly Entry[], location: Location): void {
 	for (const [index, entry] of entries.entries()) {
-		if (index > 0 && index % NUMBER_BUTTONS_PER_ROW === 0) keyboard.row();
-		keyboard.text(String(index + 1), entryData('o', location, entry.item.id));
+		const number = index + 1;
+		const { id } = entry.item;
+
+		if (entry.type === 'torrent') {
+			if (entry.item.status === 'downloaded') keyboard.text(`⬇️ Baixar ${number}`, entryData('x:dl', location, id));
+		} else {
+			keyboard.url(`⬇️ Baixar ${number}`, entry.item.download);
+			if (entry.item.streamable === 1) keyboard.text(`🎥 Stream ${number}`, entryData('x:sm', location, id));
+		}
+		keyboard.text(`🗑️ Deletar ${number}`, entryData('x:rm', location, id)).row();
 	}
-	keyboard.row();
 }
 
 /**
@@ -127,10 +136,10 @@ async function listingScreen(dependencies: BotDependencies, requested: Location)
 	const header = [bold(`${LISTINGS[kind].title} (${total})`)];
 	if (totalPages > 1)
 		header.push(pageable ? `Página ${page} de ${totalPages}` : `Mostrando os ${items.length} primeiros: a busca é longa demais para paginar, refine o termo.`);
-	header.push('Toque no número de um item para ver as ações.');
+	header.push('Os botões abaixo agem sobre o item de mesmo número.');
 
 	const keyboard = new InlineKeyboard();
-	addNumberButtons(keyboard, items, anchor);
+	addActionRows(keyboard, items, anchor);
 	if (totalPages > 1 && pageable) {
 		if (page > 1) keyboard.text('⏮', pageData({ kind, page: 1, query })).text('◀️', pageData({ kind, page: page - 1, query }));
 		keyboard.text(`${page}/${totalPages}`, NOOP);
@@ -154,7 +163,7 @@ async function findEntry(dependencies: BotDependencies, location: Location, id: 
 	return item && { type: 'download', item };
 }
 
-/** One entry with its actions as buttons. */
+/** One entry with its actions as buttons. Kept for the numbered buttons of listings sent before the actions moved into the list. */
 function entryScreen(entry: Entry, location: Location): Screen {
 	const keyboard = new InlineKeyboard();
 	const { id } = entry.item;
@@ -175,9 +184,7 @@ function entryScreen(entry: Entry, location: Location): Screen {
 
 /** Deleting cannot be undone, so the button asks before doing it. */
 function confirmDeletionScreen(entry: Entry, location: Location): Screen {
-	const keyboard = new InlineKeyboard()
-		.text('✅ Sim, deletar', entryData('x:ry', location, entry.item.id))
-		.text('↩️ Cancelar', entryData('o', location, entry.item.id));
+	const keyboard = new InlineKeyboard().text('✅ Sim, deletar', entryData('x:ry', location, entry.item.id)).text('↩️ Cancelar', pageData(location));
 	return { text: `${card(entry, false)}\n\n${bold(`⚠️ Deletar este ${entry.type}? Esta ação não pode ser desfeita.`)}`, keyboard };
 }
 
@@ -200,8 +207,8 @@ export async function replyEntries(ctx: Context, title: string, type: Entry['typ
 	const entries = items.slice(0, LISTING_PAGE_SIZE).map((item) => ({ type, item }) as Entry);
 	const keyboard = new InlineKeyboard();
 	// These entries come from no reproducible listing, so "back" leads to the plain listing of their type.
-	addNumberButtons(keyboard, entries, { kind: type === 'torrent' ? 't' : 'd', page: 1, query: '' });
-	const header = `${bold(`${title} (${entries.length})`)}\nToque no número de um item para ver as ações.`;
+	addActionRows(keyboard, entries, { kind: type === 'torrent' ? 't' : 'd', page: 1, query: '' });
+	const header = `${bold(`${title} (${entries.length})`)}\nOs botões abaixo agem sobre o item de mesmo número.`;
 	await ctx.reply(numberedCards(header, entries), { ...HTML_OPTIONS, reply_markup: keyboard });
 }
 

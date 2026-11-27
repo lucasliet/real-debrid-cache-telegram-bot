@@ -32,7 +32,11 @@ test('lists torrents as valid HTML even when names carry markup characters', asy
 	assert.include(listing, 'Tom_&amp;_Jerry &lt;1080p&gt; [x265]');
 	assert.notInclude(listing, 'tg://', 'actions are buttons, not links some clients cannot open');
 	assert.include(listing, '2.00 MB/s');
-	assert.deepStrictEqual(bot.buttons(), ['1=o:t:1:A', '2=o:t:1:B']);
+	assert.deepStrictEqual(
+		bot.buttons(),
+		['⬇️ Baixar 1=x:dl:t:1:A', '🗑️ Deletar 1=x:rm:t:1:A', '🗑️ Deletar 2=x:rm:t:1:B'],
+		'an unfinished torrent has nothing to download',
+	);
 	assert.deepStrictEqual(bot.telegramCalls[0].payload.parse_mode, 'HTML');
 });
 
@@ -46,8 +50,8 @@ test('pages through every torrent with navigation buttons that edit the same mes
 	assert.include(bot.texts()[0], 'Página 1 de 3');
 	assert.include(bot.texts()[0], 'Torrent number 9');
 	assert.notInclude(bot.texts()[0], 'Torrent number 10');
-	assert.deepStrictEqual(bot.buttons().slice(0, 2), ['1=o:t:1:ID0', '2=o:t:1:ID1']);
-	assert.deepStrictEqual(bot.buttons().slice(10), ['1/3=noop', '▶️=p:t:2', '⏭=p:t:3']);
+	assert.deepStrictEqual(bot.buttons().slice(0, 2), ['⬇️ Baixar 1=x:dl:t:1:ID0', '🗑️ Deletar 1=x:rm:t:1:ID0']);
+	assert.deepStrictEqual(bot.buttons().slice(20), ['1/3=noop', '▶️=p:t:2', '⏭=p:t:3']);
 
 	await bot.pressButton('p:t:3');
 
@@ -71,7 +75,7 @@ test('a listing that fits one page has only the entry buttons', async () => {
 
 	assert.include(bot.texts()[0], 'Downloads (1)');
 	assert.notInclude(bot.texts()[0], 'Página');
-	assert.deepStrictEqual(bot.buttons(), ['1=o:d:1:D1']);
+	assert.deepStrictEqual(bot.buttons(), ['⬇️ Baixar 1=https://dl.example/D1', '🗑️ Deletar 1=x:rm:d:1:D1']);
 });
 
 test('falls back to the last page when the library shrank since the buttons were drawn', async () => {
@@ -92,7 +96,7 @@ test('shortens names instead of overflowing when a page of long names does not f
 
 	assert.strictEqual(bot.texts().length, 1);
 	assert.include(bot.texts()[0], '…');
-	assert.strictEqual(bot.buttons().length, 10);
+	assert.strictEqual(bot.buttons().length, 20);
 });
 
 test('pages through search results, carrying the query in the buttons', async () => {
@@ -102,8 +106,8 @@ test('pages through search results, carrying the query in the buttons', async ()
 
 	await bot.sendText('zelda');
 	assert.include(bot.texts()[0], 'Torrents encontrados (15)');
-	assert.strictEqual(bot.buttons()[0], '1=o:st:1:Z0:zelda');
-	assert.deepStrictEqual(bot.buttons().slice(10), ['1/2=noop', '▶️=p:st:2:zelda', '⏭=p:st:2:zelda']);
+	assert.strictEqual(bot.buttons()[0], '⬇️ Baixar 1=x:dl:st:1:Z0:zelda');
+	assert.deepStrictEqual(bot.buttons().slice(20), ['1/2=noop', '▶️=p:st:2:zelda', '⏭=p:st:2:zelda']);
 
 	await bot.pressButton('p:st:2:zelda');
 	assert.include(bot.texts().at(-1) ?? '', 'Zelda.Part.14');
@@ -118,8 +122,8 @@ test('shows the first page without page buttons when the search text is too long
 	await bot.sendText(query);
 
 	assert.include(bot.texts()[0], 'longa demais para paginar');
-	assert.strictEqual(bot.buttons().length, 10, 'entries stay reachable by id');
-	assert.strictEqual(bot.buttons()[0], '1=o:t:1:Z0');
+	assert.strictEqual(bot.buttons().length, 20, 'entries stay reachable by id');
+	assert.strictEqual(bot.buttons()[0], '⬇️ Baixar 1=x:dl:t:1:Z0');
 });
 
 test('ignores navigation taps from anyone but the owner', async () => {
@@ -147,7 +151,11 @@ test('searches torrents and downloads by normalized name', async () => {
 	assert.include(torrents, 'Torrents encontrados (1)');
 	assert.include(torrents, 'Zélda');
 	assert.include(downloads, 'legend of zelda ost.flac');
-	assert.deepStrictEqual(bot.buttons(), ['1=o:sd:1:D1:legend of zelda']);
+	assert.deepStrictEqual(bot.buttons(), [
+		'⬇️ Baixar 1=https://dl.example/D1',
+		'🎥 Stream 1=x:sm:sd:1:D1:legend of zelda',
+		'🗑️ Deletar 1=x:rm:sd:1:D1:legend of zelda',
+	]);
 });
 
 test('tells the user when a search finds nothing', async () => {
@@ -341,7 +349,7 @@ test('accepts commands addressed to the bot by name', async () => {
 	assert.include(bot.texts()[0], 'Instruções de uso');
 });
 
-test('opens an entry in place and offers its actions as buttons', async () => {
+test('still opens an entry from the numbered buttons of older listings', async () => {
 	const bot = await startBot();
 	bot.realDebrid.seedTorrent({ id: 'A', filename: 'Done', links: ['https://real-debrid.com/d/1'] });
 	bot.realDebrid.seedTorrent({ id: 'B', filename: 'Still going', status: 'downloading', progress: 10 });
@@ -378,7 +386,7 @@ test('deletes from a button only after confirmation, then returns to the list', 
 
 	await bot.pressButton('x:rm:t:1:A');
 	assert.include(bot.texts().at(-1) ?? '', 'Deletar este torrent?');
-	assert.deepStrictEqual(bot.buttons(), ['✅ Sim, deletar=x:ry:t:1:A', '↩️ Cancelar=o:t:1:A']);
+	assert.deepStrictEqual(bot.buttons(), ['✅ Sim, deletar=x:ry:t:1:A', '↩️ Cancelar=p:t:1']);
 	assert.strictEqual(bot.realDebrid.torrents.has('A'), true, 'asking must not delete');
 
 	await bot.pressButton('x:ry:t:1:A');

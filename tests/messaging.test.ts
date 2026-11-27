@@ -1,6 +1,6 @@
 import { assert, test } from 'vitest';
 import { packBlocks } from '@/bot/messaging.ts';
-import { commandLink, escapeHtml, formatBytes } from '@/bot/views/html.ts';
+import { escapeHtml, formatBytes } from '@/bot/views/html.ts';
 import { RealDebridClient } from '@/realdebrid/RealDebridClient.ts';
 import { LibraryService, normalizeForSearch } from '@/services/LibraryService.ts';
 import { fileExtension, fileName } from '@/util/files.ts';
@@ -16,9 +16,8 @@ test('splits an oversized block between its lines, slicing only a line longer th
 	assert.deepStrictEqual(packBlocks(['a'.repeat(25), 'b'], 10), ['a'.repeat(10), 'a'.repeat(10), 'aaaaa\n\nb']);
 });
 
-test('escapes HTML and encodes command links', () => {
+test('escapes HTML', () => {
 	assert.deepStrictEqual(escapeHtml('<a href="x">T&J</a>'), '&lt;a href="x"&gt;T&amp;J&lt;/a&gt;');
-	assert.deepStrictEqual(commandLink('Go', '/stream A&B'), '<a href="tg://msg?text=%2Fstream%20A%26B">   Go   </a>');
 });
 
 test('formats sizes with the most readable unit', () => {

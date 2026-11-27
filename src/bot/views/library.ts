@@ -1,4 +1,4 @@
-import { actionRow, bold, code, commandLink, escapeHtml, failureLines, formatBytes, link, truncate } from '@/bot/views/html.ts';
+import { bold, code, escapeHtml, failureLines, formatBytes, truncate } from '@/bot/views/html.ts';
 import type { ActiveTorrentCount, Download, Torrent, TorrentStatus, TranscodeLinks, UnrestrictedLink, User } from '@/realdebrid/types.ts';
 import type { BulkDeleteResult } from '@/services/LibraryService.ts';
 
@@ -40,34 +40,26 @@ export function torrentCard(torrent: Torrent, options: CardOptions = {}): string
 	if (torrent.speed) progress.push(`${bold('⚡ Velocidade:')} ${formatBytes(torrent.speed)}/s`);
 	if (torrent.seeders !== undefined) progress.push(`${bold('🌱 Seeders:')} ${torrent.seeders}`);
 
-	const actions = [commandLink('🗑️ Deletar', `/delete_torrent ${torrent.id}`)];
-	if (torrent.status === 'downloaded') actions.push(commandLink('⬇️ Baixar', `/download ${torrent.id}`));
-
 	return [
 		`${bold('🆔 ID:')} ${code(torrent.id)}`,
 		`${bold('📂 Nome:')} ${cardName(torrent.filename, options)}`,
 		`${bold('💾 Tamanho:')} ${formatBytes(torrent.bytes)}`,
 		...progress,
-		actionRow(...actions),
 	].join('\n');
 }
 
 export function downloadCard(download: Download, options: CardOptions = {}): string {
-	const actions = [commandLink('🗑️ Deletar', `/delete_download ${download.id}`), link('   ⬇️ Baixar   ', download.download)];
-	if (download.streamable === 1) actions.push(commandLink('🎥 Stream', `/stream ${download.id}`));
-
 	return [
 		`${bold('🆔 ID:')} ${code(download.id)}`,
 		`${bold('📂 Nome:')} ${cardName(download.filename, options)}`,
 		`${bold('💾 Tamanho:')} ${formatBytes(download.filesize)}`,
-		actionRow(...actions),
 	].join('\n');
 }
 
 export function unrestrictedLinkCard(file: UnrestrictedLink, position?: number): string {
 	const prefix = position === undefined ? '' : `${position}. `;
 	const lines = [`${prefix}${bold(file.filename)} (${formatBytes(file.filesize)})`, escapeHtml(file.download)];
-	if (file.streamable === 1) lines.push(actionRow(commandLink('🎥 Stream', `/stream ${file.id}`)));
+	if (file.streamable === 1) lines.push(`🎥 Streaming: ${code(`/stream ${file.id}`)}`);
 	return lines.join('\n');
 }
 

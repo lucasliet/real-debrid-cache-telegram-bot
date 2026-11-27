@@ -101,8 +101,13 @@ export async function startBot(overrides: { config?: Partial<AppConfig>; externa
 		/** Callback data of the navigation buttons attached to the last message sent or edited. */
 		buttons(): string[] {
 			const last = telegramCalls.filter((call) => call.method === 'sendMessage' || call.method === 'editMessageText').at(-1);
-			const markup = last?.payload.reply_markup as { inline_keyboard?: { text: string; callback_data: string }[][] } | undefined;
-			return (markup?.inline_keyboard ?? []).flat().map((button) => `${button.text}=${button.callback_data}`);
+			const markup = last?.payload.reply_markup as { inline_keyboard?: { text: string; callback_data?: string; url?: string }[][] } | undefined;
+			const buttons = (markup?.inline_keyboard ?? []).flat();
+			for (const button of buttons) {
+				// Telegram rejects callback data longer than 64 bytes.
+				if (new TextEncoder().encode(button.callback_data ?? '').length > 64) throw new Error(`callback data too long: ${button.callback_data}`);
+			}
+			return buttons.map((button) => `${button.text}=${button.callback_data ?? button.url}`);
 		},
 		sendDocument(fileName: string, fileSize = 1024): Promise<void> {
 			return bot.handleUpdate(message({ document: { file_id: 'F1', file_unique_id: 'U1', file_name: fileName, file_size: fileSize } }));

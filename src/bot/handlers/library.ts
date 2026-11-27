@@ -1,10 +1,10 @@
 import { Composer, type Context } from 'grammy';
 import type { BotDependencies } from '@/bot/createBot.ts';
-import { listingNavigation, replyListing } from '@/bot/handlers/listings.ts';
+import { listingNavigation, replyEntries, replyListing } from '@/bot/handlers/listings.ts';
 import { describeError, replyBlocks, replyHtml } from '@/bot/messaging.ts';
 import { requireArgument } from '@/bot/middleware.ts';
 import { bold, escapeHtml, truncate } from '@/bot/views/html.ts';
-import { accountSummary, bulkDeleteSummary, downloadCard, streamBlocks, torrentCard, unrestrictedLinkCard } from '@/bot/views/library.ts';
+import { accountSummary, bulkDeleteSummary, streamBlocks, unrestrictedLinkCard } from '@/bot/views/library.ts';
 
 /** A pasted text can be as long as a whole message; echoing it in full would not fit the reply. */
 const MAX_ECHOED_QUERY_LENGTH = 100;
@@ -74,18 +74,15 @@ export function libraryHandlers(dependencies: BotDependencies): Composer<Context
  * @param query - Text typed by the user
  */
 export async function replySearch(ctx: Context, query: string, dependencies: BotDependencies): Promise<void> {
-	const { library, sleep } = dependencies;
-	const { torrents, downloads, suggested } = await library.search(query);
+	const { torrents, downloads, suggested } = await dependencies.library.search(query);
 	if (torrents.length === 0 && downloads.length === 0) {
 		return void (await replyHtml(ctx, `❌ Nenhum resultado para "${escapeHtml(truncate(query, MAX_ECHOED_QUERY_LENGTH))}".`));
 	}
 
 	if (suggested) {
 		await replyHtml(ctx, `🤖 Nenhum nome contém "${escapeHtml(truncate(query, MAX_ECHOED_QUERY_LENGTH))}". Estas são sugestões da IA:`);
-		if (torrents.length > 0)
-			await replyBlocks(ctx, [bold(`📥 Torrents sugeridos (${torrents.length})`), ...torrents.map((torrent) => torrentCard(torrent))], sleep);
-		if (downloads.length > 0)
-			await replyBlocks(ctx, [bold(`📦 Downloads sugeridos (${downloads.length})`), ...downloads.map((download) => downloadCard(download))], sleep);
+		if (torrents.length > 0) await replyEntries(ctx, '📥 Torrents sugeridos', 'torrent', torrents);
+		if (downloads.length > 0) await replyEntries(ctx, '📦 Downloads sugeridos', 'download', downloads);
 		return;
 	}
 

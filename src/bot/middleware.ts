@@ -17,6 +17,8 @@ export const errorBoundary: MiddlewareFn<Context> = async (ctx, next) => {
 
 		try {
 			await ctx.reply(`❌ ${describeError(error)}`);
+			// A button tap keeps showing its spinner until it is answered.
+			if (ctx.callbackQuery) await ctx.answerCallbackQuery();
 		} catch (replyError) {
 			console.error('[BOT] Could not report the failure to the user:', replyError);
 		}
